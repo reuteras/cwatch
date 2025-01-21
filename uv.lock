@@ -58,7 +58,7 @@ wheels = [
 [[package]]
 name = "cwatch"
 version = "0.0.1"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "jsondiff" },

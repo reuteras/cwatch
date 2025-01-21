@@ -1,6 +1,6 @@
 [project]
 name = "cwatch"
-version = "0.0.1"
+version = "0.0.4"
 authors = [
   { name="Peter Reuterås", email="peter@reuteras.net" },
 ]
@@ -16,6 +16,10 @@ dependencies = [
     "httpx>=0.28.1",
     "jsondiff>=2.2.1",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project.scripts]
 cwatch= "cwatch:main"

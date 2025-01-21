@@ -4,7 +4,7 @@ A simple tool to regurarly run queries against [cyberbro](https://github.com/sta
 
 ## Configuration
 
-Create a directory where you like to store your configuration and database. Create a configuration file named _cwatch.conf_ in that directory, an example is available below.
+Create a directory where you like to store your configuration and database. Create a configuration file named _cwatch.toml_ in that directory, an example is available below.
 
 ```
 [iocs]
@@ -26,8 +26,12 @@ DB_FILE = "cwatch.db"
 
 Change _domains_ to the domains (or hosts) you like to monitor.
 
-## Usage
+## Install
+
+Run the following in the directory where you have placed _cwatch.toml_.
 
 ```
-
+uv venv
+uv pip install cwatch
+uv run cwatch
 ```
