@@ -31,4 +31,3 @@ Change _domains_ to the domains (or hosts) you like to monitor.
 ```
 
 ```
-

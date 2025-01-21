@@ -1,4 +1,5 @@
 """cwatch is a tool to monitor cyberbro for changes for questions."""
+
 import hashlib
 import json
 import socket
@@ -14,11 +15,8 @@ import jsondiff
 
 def submit_request(configuration, name):
     """Submit question to Cybero."""
-    data={
-        "text": name,
-        "engines":  configuration["cyberbro"]["engines"]
-    }
-    r = httpx.post(configuration["cyberbro"]["url"] + '/api/analyze', json=data)
+    data = {"text": name, "engines": configuration["cyberbro"]["engines"]}
+    r = httpx.post(configuration["cyberbro"]["url"] + "/api/analyze", json=data)
     try:
         return json.loads(r.text)
     except Exception as err:
@@ -42,7 +40,8 @@ def setup_database(configuration):
     """Create database."""
     conn = sqlite3.connect(configuration["cwatch"]["DB_FILE"])
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS json_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             target TEXT NOT NULL,
@@ -50,7 +49,8 @@ def setup_database(configuration):
             json_hash TEXT NOT NULL,
             json_content TEXT NOT NULL
         )
-    """)
+    """
+    )
     conn.commit()
     conn.close()
 
@@ -58,7 +58,7 @@ def setup_database(configuration):
 def calculate_hash(json_data):
     """Function to calculate a hash for a JSON object."""
     json_string = json.dumps(json_data, sort_keys=True)
-    return hashlib.sha256(json_string.encode('utf-8')).hexdigest()
+    return hashlib.sha256(json_string.encode("utf-8")).hexdigest()
 
 
 def save_json_data(configuration, item, json_data):
@@ -70,10 +70,13 @@ def save_json_data(configuration, item, json_data):
     json_hash = calculate_hash(json_data)
 
     # Insert the new JSON data
-    cursor.execute("""
-        INSERT INTO json_data (target, timestamp, json_hash, json_content) 
+    cursor.execute(
+        """
+        INSERT INTO json_data (target, timestamp, json_hash, json_content)
         VALUES (?, ?, ?, ?)
-    """, (item, datetime.now().isoformat(), json_hash, json.dumps(json_data)))
+    """,
+        (item, datetime.now().isoformat(), json_hash, json.dumps(json_data)),
+    )
 
     conn.commit()
     conn.close()
@@ -85,13 +88,16 @@ def detect_changes(configuration, item):
     cursor = conn.cursor()
 
     # Fetch the last two entries
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT json_content FROM json_data WHERE target = ?
         ORDER BY id DESC LIMIT 2
-    """, (item,))
+    """,
+        (item,),
+    )
     rows = cursor.fetchall()
 
-    if len(rows) == 2: # noqa: PLR2004
+    if len(rows) == 2:  # noqa: PLR2004
         old_json = json.loads(rows[1][0])[0]
         new_json = json.loads(rows[0][0])[0]
         changes = compare_json(configuration, old_json, new_json)
@@ -134,7 +140,7 @@ def compare_json(configuration, old, new):
 def report_header(conf):
     """Print header in report mode."""
     print(conf["cwatch"]["header"])
-    print("="*len(conf["cwatch"]["header"]))
+    print("=" * len(conf["cwatch"]["header"]))
     print("")
     print(f"Report generation start at {datetime.now().isoformat()}")
     print("")
@@ -165,7 +171,7 @@ def main():
 
     with open("cwatch.toml", "rb") as file:
         conf = tomllib.load(file)
-    
+
     if conf["cwatch"]["report"]:
         report_header(conf)
 
@@ -174,7 +180,7 @@ def main():
 
     # Create list with domains and their IP addresses
     for domain in conf["iocs"]["domains"]:
-        addresses = socket.getaddrinfo(domain, 'http', proto=socket.IPPROTO_TCP)
+        addresses = socket.getaddrinfo(domain, "http", proto=socket.IPPROTO_TCP)
         if domain not in targets:
             targets.append(domain)
         for address in addresses:
@@ -198,4 +204,3 @@ def main():
 # Call main if used as a program.
 if __name__ == "__main__":
     main()
-
