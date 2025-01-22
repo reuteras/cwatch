@@ -4,6 +4,7 @@ import hashlib
 import json
 import socket
 import sqlite3
+import sys
 import time
 import tomllib
 from datetime import datetime
@@ -180,7 +181,11 @@ def main():
 
     # Create list with domains and their IP addresses
     for domain in conf["iocs"]["domains"]:
-        addresses = socket.getaddrinfo(domain, "http", proto=socket.IPPROTO_TCP)
+        try:
+            addresses = socket.getaddrinfo(domain, "http", proto=socket.IPPROTO_TCP)
+        except Exception as err:
+            print(f"Error looking up ip for domain {domain}: {err}")
+            sys.exit(1)
         if domain not in targets:
             targets.append(domain)
         for address in addresses:
