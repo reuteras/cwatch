@@ -1,6 +1,8 @@
 """cwatch is a tool to monitor cyberbro for changes for questions."""
 
+
 import hashlib
+import importlib.metadata
 import json
 import socket
 import sqlite3
@@ -162,8 +164,10 @@ def report_header(conf):
 def report_footer(conf):
     """Print footer in report mode."""
     print("")
-    print(f"Report done at {datetime.now().isoformat()}")
+    print(f"Report done at {datetime.now().isoformat()}.")
     print(conf["cwatch"]["footer"])
+    print("")
+    print(f"Report generated with cwatch {importlib.metadata.version('cwatch')}.")
 
 
 def main():
