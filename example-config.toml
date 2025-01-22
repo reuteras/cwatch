@@ -1,14 +1,45 @@
 [iocs]
-domains = [ "example.com", "example.net" ]
+domains = [
+    "example.com",
+    "example.net",
+]
 
 [cyberbro]
 url = "http://127.0.0.1:5000"
-engines = ["reverse_dns", "rdap", "ipquery", "abuseipdb", "ipinfo", "virustotal", "spur", "google_safe_browsing", "shodan", "phishtank", "threatfox", "urlscan", "google", "github", "ioc_one_html", "ioc_one_pdf", "abusix"]
+engines = [ 
+    "abuseipdb",
+    "abusix",
+    "github",
+    "google",
+    "google_safe_browsing",
+    "ioc_one_html",
+    "ioc_one_pdf",
+    "ipinfo",
+    "ipquery",
+    "phishtank",
+    "rdap",
+    "reverse_dns",
+    "shodan",
+    "spur",
+    "threatfox",
+    "urlscan",
+    "virustotal",
+]
 
-[osint]
+[cwatch]
 header = "Report for example.com"
 footer = ""
-ignore_engines = ["$delete", "reverse_dns", "ipquery", "ipinfo", "urlscan", "spur" ]
+ignore_engines = [
+    "$delete",
+    "reverse_dns",
+    "ipquery",
+    "ipinfo",
+    "urlscan",
+    "spur"
+]
+ignore_engines_partly = [
+    [ "abuseipdb", "link" ],
+]
 report = true
 simple = false
 verbose = false
