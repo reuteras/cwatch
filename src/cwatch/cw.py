@@ -1,8 +1,7 @@
 """cwatch is a tool to monitor cyberbro for changes for questions."""
-
-
 import hashlib
 import importlib.metadata
+import ipaddress
 import json
 import socket
 import sqlite3
@@ -185,16 +184,21 @@ def main():
 
     # Create list with domains and their IP addresses
     for domain in conf["iocs"]["domains"]:
+        public_ip = False
         try:
             addresses = socket.getaddrinfo(domain, "http", proto=socket.IPPROTO_TCP)
         except Exception as err:
             print(f"Error looking up ip for domain {domain}: {err}")
             sys.exit(1)
-        if domain not in targets:
+        for address in addresses:
+            ip = address[4][0]
+            if ip not in targets and not ipaddress.ip_address(ip).is_private:
+                public_ip = True
+        if public_ip and domain not in targets:
             targets.append(domain)
         for address in addresses:
             ip = address[4][0]
-            if ip not in targets:
+            if ip not in targets and not ipaddress.ip_address(ip).is_private:
                 targets.append(ip)
 
     # Check for changes
