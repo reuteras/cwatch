@@ -6,7 +6,7 @@ domains = [
 
 [cyberbro]
 url = "http://127.0.0.1:5000"
-engines = [ 
+engines = [
     "abuseipdb",
     "abusix",
     "github",
@@ -40,6 +40,7 @@ ignore_engines = [
 ignore_engines_partly = [
     [ "abuseipdb", "link" ],
 ]
+quiet = true
 report = true
 simple = false
 verbose = false
