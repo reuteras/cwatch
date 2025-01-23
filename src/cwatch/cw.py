@@ -84,10 +84,68 @@ def save_json_data(configuration, item, json_data):
     conn.close()
 
 
+def handle_virustotal(change):
+    """Remove change from virustotal if no matches."""
+    report = True
+    if isinstance(change["virustotal"], list) and len(change["virustotal"]) == 2: # noqa: PLR2004
+        if "community_score" in change["virustotal"] and change["virustotal"][1]["community_score"] == 0 \
+                and "total_malicious" in change["virustotal"] and change["virustotal"][1]["total_malicious"] == 0:
+            report = False
+        elif change["virustotal"][1] is None:
+            report = False
+    if change["virustotal"] is None or ("community_score" in change["virustotal"]):
+        if change["virustotal"]["community_score"] == 0 and change["virustotal"]["total_malicious"] == 0:
+            report = False
+    if not report:
+        change.pop("virustotal")
+    return change
+
+
+def handle_shodan(change):
+    """Remove change from shodan if change is to null."""
+    if "link" not in change["shodan"]:
+        change.pop("shodan")
+    return change
+
+
+def handle_abuseipdb(change):
+    """Remove change from abuseipdb if no relevant changes."""
+    report = True
+    if isinstance(change["abuseipdb"], list) and len(change["abuseipdb"]) == 2: # noqa: PLR2004
+        if change["abuseipdb"][1]["reports"] == 0 and change["abuseipdb"][1]["risk_score"] == 0:
+            report = False
+    if "reports" in change["abuseipdb"] and "risk_score" in change["abuseipdb"]:
+        if change["abuseipdb"]["reports"] == 0 and change["abuseipdb"]["risk_score"] == 0:
+            report = False
+    if not report:
+        change.pop("abuseipdb")
+    return change
+
+
+def handle_changes(configuration, target, changes):
+    """Handle changes."""
+    if configuration["cwatch"]["quiet"]:
+        if "virustotal" in changes:
+            changes = handle_virustotal(changes)
+        if "shodan" in changes:
+            changes = handle_shodan(changes)
+        if "abuseipdb" in changes:
+            changes = handle_abuseipdb(changes)
+        if changes != {}:
+            print(f"Changes detected for {target}:")
+            print(json.dumps(changes, indent=4))
+            return True
+        return False
+    print(f"Changes detected for {target}:")
+    print(json.dumps(changes, indent=4))
+    return True
+
+
 def detect_changes(configuration, item):
     """Detect changes in json."""
     conn = sqlite3.connect(configuration["cwatch"]["DB_FILE"])
     cursor = conn.cursor()
+    changes = False
 
     # Fetch the last two entries
     cursor.execute(
@@ -99,19 +157,19 @@ def detect_changes(configuration, item):
     )
     rows = cursor.fetchall()
 
-    if len(rows) == 2:  # noqa: PLR2004
+    if len(rows) == 2: # noqa: PLR2004
         old_json = json.loads(rows[1][0])[0]
         new_json = json.loads(rows[0][0])[0]
         changes = compare_json(configuration, old_json, new_json)
         if changes != {}:
-            print(f"Changes detected for {item}:")
-            print(json.dumps(changes, indent=4))
-        elif configuration["cwatch"]["report"]:
+            changes = handle_changes(configuration, item, changes)
+        if configuration["cwatch"]["report"] and not configuration["cwatch"]["quiet"]:
             print("- No changes.")
-    else:
+    elif not configuration["cwatch"]["quiet"]:
         print("- Not enough data for comparison.")
 
     conn.close()
+    return changes
 
 
 def compare_json(configuration, old, new):
@@ -154,7 +212,7 @@ def report_header(conf):
             print(f"- {engine}")
     print("")
     if conf["cwatch"]["ignore_engines_partly"]:
-        print("Ignore changes if the changes only are in:")
+        print("Ignore change if the only change is in one of:")
         for combo in conf["cwatch"]["ignore_engines_partly"]:
             print(f"- {combo[0]} -> {combo[1]}")
         print("")
@@ -164,26 +222,16 @@ def report_footer(conf):
     """Print footer in report mode."""
     print("")
     print(f"Report done at {datetime.now().isoformat()}.")
-    print(conf["cwatch"]["footer"])
+    if conf["cwatch"]["footer"]:
+        print("")
+        print(conf["cwatch"]["footer"])
     print("")
     print(f"Report generated with cwatch {importlib.metadata.version('cwatch')}.")
 
 
-def main():
-    """Main function."""
-    targets = []
-
-    with open("cwatch.toml", "rb") as file:
-        conf = tomllib.load(file)
-
-    if conf["cwatch"]["report"]:
-        report_header(conf)
-
-    if not Path(conf["cwatch"]["DB_FILE"]).is_file():
-        setup_database(conf)
-
-    # Create list with domains and their IP addresses
-    for domain in conf["iocs"]["domains"]:
+def get_targets(configuration, targets):
+    """Get targets for check."""
+    for domain in configuration["iocs"]["domains"]:
         public_ip = False
         try:
             addresses = socket.getaddrinfo(domain, "http", proto=socket.IPPROTO_TCP)
@@ -200,16 +248,40 @@ def main():
             ip = address[4][0]
             if ip not in targets and not ipaddress.ip_address(ip).is_private:
                 targets.append(ip)
+    return targets
+
+def main():
+    """Main function."""
+    targets = []
+    changes = False
+
+    with open("cwatch.toml", "rb") as file:
+        conf = tomllib.load(file)
+
+    if conf["cwatch"]["report"]:
+        report_header(conf)
+
+    if not Path(conf["cwatch"]["DB_FILE"]).is_file():
+        setup_database(conf)
+
+    # Create list with domains and their IP addresses
+    get_targets(conf, targets)
 
     # Check for changes
+    if conf["cwatch"]["report"]:
+        print(f"Will check {len(targets)} hosts.")
     for item in targets:
-        if conf["cwatch"]["report"]:
+        if conf["cwatch"]["report"] and not conf["cwatch"]["quiet"]:
             print(f"Checking for changes for: {item}")
         request_id = submit_request(conf, item)
         results_json = get_response(conf, request_id["link"])
         save_json_data(conf, item, results_json)
-        detect_changes(conf, item)
+        if detect_changes(conf, item):
+            changes = True
 
+    if conf["cwatch"]["report"] and conf["cwatch"]["quiet"] and not changes:
+        print("")
+        print("No changes to report.")
     if conf["cwatch"]["report"]:
         report_footer(conf)
 
