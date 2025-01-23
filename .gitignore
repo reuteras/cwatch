@@ -7,6 +7,7 @@ dist/
 cwatch.db
 wheels/
 *.egg-info
+*.tmp
 
 # Virtual environments
 .venv
