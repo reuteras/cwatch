@@ -29,12 +29,16 @@ def submit_request(configuration, name):
 def get_response(configuration, link):
     """Get the response from Cybero."""
     done = False
+    r = None
+
     while not done:
         r = httpx.get(configuration["cyberbro"]["url"] + "/api" + link)
         if r.text != "[]\n":
             done = True
         else:
             time.sleep(1)
+
+    assert r is not None
     return json.loads(r.text)
 
 
@@ -178,7 +182,7 @@ def compare_json(configuration, old, new):
     verbose = configuration["cwatch"]["verbose"]
     if simple:
         return jsondiff.diff(old, new, syntax="symmetric")
-    diff = json.loads(jsondiff.diff(old, new, syntax="symmetric", dump=True))
+    diff = jsondiff.diff(old, new, syntax="symmetric", dump=True)
     for engine in configuration["cwatch"]["ignore_engines"]:
         if engine in diff:
             removed = diff.pop(engine)
