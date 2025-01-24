@@ -88,30 +88,6 @@ def save_json_data(configuration, item, json_data):
     conn.close()
 
 
-def handle_virustotal(change):
-    """Remove change from virustotal if no matches."""
-    report = True
-    if isinstance(change["virustotal"], list) and len(change["virustotal"]) == 2: # noqa: PLR2004
-        if "community_score" in change["virustotal"] and change["virustotal"][1]["community_score"] == 0 \
-                and "total_malicious" in change["virustotal"] and change["virustotal"][1]["total_malicious"] == 0:
-            report = False
-        elif change["virustotal"][1] is None:
-            report = False
-    if change["virustotal"] is None or ("community_score" in change["virustotal"]):
-        if change["virustotal"]["community_score"] == 0 and change["virustotal"]["total_malicious"] == 0:
-            report = False
-    if not report:
-        change.pop("virustotal")
-    return change
-
-
-def handle_shodan(change):
-    """Remove change from shodan if change is to null."""
-    if "link" not in change["shodan"]:
-        change.pop("shodan")
-    return change
-
-
 def handle_abuseipdb(change):
     """Remove change from abuseipdb if no relevant changes."""
     report = True
@@ -126,15 +102,58 @@ def handle_abuseipdb(change):
     return change
 
 
+def handle_shodan(change):
+    """Remove change from shodan if change is to null."""
+    if "link" not in change["shodan"]:
+        change.pop("shodan")
+    return change
+
+
+def handle_threatfox(change):
+    """Remove change from threatfox if no matches."""
+    report = True
+    if isinstance(change["threatfox"], list) and len(change["threatfox"]) == 2: # noqa: PLR2004
+        if "count" in change["threatfox"][1] and change["threatfox"][1]["count"] == 0 \
+                and "malware_printable" in change["threatfox"][1] and change["threatfox"][1]["malware_printable"] == []:
+            report = False
+        elif change["threatfox"][1] is None:
+            report = False
+    if change["threatfox"] is None or ("count" in change["threatfox"]):
+        if change["threatfox"]["count"] == 0 and change["threatfox"]["malware_printable"] == []:
+            report = False
+    if not report:
+        change.pop("threatfox")
+    return change
+
+
+def handle_virustotal(change):
+    """Remove change from virustotal if no matches."""
+    report = True
+    if isinstance(change["virustotal"], list) and len(change["virustotal"]) == 2: # noqa: PLR2004
+        if change["virustotal"][1] is None:
+            report = False
+        elif "community_score" in change["virustotal"][1] and change["virustotal"][1]["community_score"] == 0 \
+                and "total_malicious" in change["virustotal"][1] and change["virustotal"][1]["total_malicious"] == 0:
+            report = False
+    if change["virustotal"] is None or ("community_score" in change["virustotal"]):
+        if change["virustotal"]["community_score"] == 0 and change["virustotal"]["total_malicious"] == 0:
+            report = False
+    if not report:
+        change.pop("virustotal")
+    return change
+
+
 def handle_changes(configuration, target, changes):
     """Handle changes."""
     if configuration["cwatch"]["quiet"]:
-        if "virustotal" in changes:
-            changes = handle_virustotal(changes)
-        if "shodan" in changes:
-            changes = handle_shodan(changes)
         if "abuseipdb" in changes:
             changes = handle_abuseipdb(changes)
+        if "shodan" in changes:
+            changes = handle_shodan(changes)
+        if "threatfox" in changes:
+            changes = handle_threatfox(changes)
+        if "virustotal" in changes:
+            changes = handle_virustotal(changes)
         if changes != {}:
             print(f"Changes detected for {target}:")
             print(json.dumps(changes, indent=4))
@@ -182,7 +201,7 @@ def compare_json(configuration, old, new):
     verbose = configuration["cwatch"]["verbose"]
     if simple:
         return jsondiff.diff(old, new, syntax="symmetric")
-    diff = jsondiff.diff(old, new, syntax="symmetric", dump=True)
+    diff = json.loads(jsondiff.diff(old, new, syntax="symmetric", dump=True))
     for engine in configuration["cwatch"]["ignore_engines"]:
         if engine in diff:
             removed = diff.pop(engine)
