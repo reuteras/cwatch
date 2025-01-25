@@ -10,29 +10,30 @@ import time
 import tomllib
 from datetime import datetime
 from pathlib import Path
+from typing import Any, cast
 
 import httpx
 import jsondiff
 
 
-def submit_request(configuration, name):
-    """Submit question to Cybero."""
-    data = {"text": name, "engines": configuration["cyberbro"]["engines"]}
-    r = httpx.post(configuration["cyberbro"]["url"] + "/api/analyze", json=data)
+def submit_request(configuration, name) -> dict:
+    """Submit question to Cyberbro."""
+    data: dict[str, Any] = {"text": name, "engines": configuration["cyberbro"]["engines"]}
+    r: httpx.Response = httpx.post(url=configuration["cyberbro"]["url"] + "/api/analyze", json=data)
     try:
         return json.loads(r.text)
     except Exception as err:
-        print(f"Error submiting request: {r.text}. Error was {err}")
-        return ""
+        print(f"Error submitting request: {r.text}. Error was {err}")
+        return {}
 
 
-def get_response(configuration, link):
-    """Get the response from Cybero."""
+def get_response(configuration, link) -> dict:
+    """Get the response from Cyberbro."""
     done = False
-    r = None
+    r: httpx.Response | None = None
 
     while not done:
-        r = httpx.get(configuration["cyberbro"]["url"] + "/api" + link)
+        r = httpx.get(url=configuration["cyberbro"]["url"] + "/api" + link)
         if r.text != "[]\n":
             done = True
         else:
@@ -42,10 +43,10 @@ def get_response(configuration, link):
     return json.loads(r.text)
 
 
-def setup_database(configuration):
+def setup_database(configuration) -> None:
     """Create database."""
-    conn = sqlite3.connect(configuration["cwatch"]["DB_FILE"])
-    cursor = conn.cursor()
+    conn: sqlite3.Connection = sqlite3.connect(configuration["cwatch"]["DB_FILE"])
+    cursor: sqlite3.Cursor = conn.cursor()
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS json_data (
@@ -61,19 +62,19 @@ def setup_database(configuration):
     conn.close()
 
 
-def calculate_hash(json_data):
+def calculate_hash(json_data) -> str:
     """Function to calculate a hash for a JSON object."""
-    json_string = json.dumps(json_data, sort_keys=True)
+    json_string: str = json.dumps(json_data, sort_keys=True)
     return hashlib.sha256(json_string.encode("utf-8")).hexdigest()
 
 
-def save_json_data(configuration, item, json_data):
+def save_json_data(configuration, item, json_data) -> None:
     """Save JSON data if changes are detected."""
-    conn = sqlite3.connect(configuration["cwatch"]["DB_FILE"])
-    cursor = conn.cursor()
+    conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
+    cursor: sqlite3.Cursor = conn.cursor()
 
     # Calculate hash for the current JSON
-    json_hash = calculate_hash(json_data)
+    json_hash = calculate_hash(json_data=json_data)
 
     # Insert the new JSON data
     cursor.execute(
@@ -88,7 +89,7 @@ def save_json_data(configuration, item, json_data):
     conn.close()
 
 
-def handle_abuseipdb(change):
+def handle_abuseipdb(change) -> dict:
     """Remove change from abuseipdb if no relevant changes."""
     report = True
     if isinstance(change["abuseipdb"], list) and len(change["abuseipdb"]) == 2: # noqa: PLR2004
@@ -102,14 +103,14 @@ def handle_abuseipdb(change):
     return change
 
 
-def handle_shodan(change):
+def handle_shodan(change) -> dict:
     """Remove change from shodan if change is to null."""
     if "link" not in change["shodan"]:
         change.pop("shodan")
     return change
 
 
-def handle_threatfox(change):
+def handle_threatfox(change) -> dict:
     """Remove change from threatfox if no matches."""
     report = True
     if isinstance(change["threatfox"], list) and len(change["threatfox"]) == 2: # noqa: PLR2004
@@ -126,7 +127,7 @@ def handle_threatfox(change):
     return change
 
 
-def handle_virustotal(change):
+def handle_virustotal(change) -> dict:
     """Remove change from virustotal if no matches."""
     report = True
     if isinstance(change["virustotal"], list) and len(change["virustotal"]) == 2: # noqa: PLR2004
@@ -143,7 +144,7 @@ def handle_virustotal(change):
     return change
 
 
-def handle_changes(configuration, target, changes):
+def handle_changes(configuration, target, changes) -> bool:
     """Handle changes."""
     if configuration["cwatch"]["quiet"]:
         if "abuseipdb" in changes:
@@ -164,11 +165,11 @@ def handle_changes(configuration, target, changes):
     return True
 
 
-def detect_changes(configuration, item):
+def detect_changes(configuration, item) -> bool:
     """Detect changes in json."""
-    conn = sqlite3.connect(configuration["cwatch"]["DB_FILE"])
-    cursor = conn.cursor()
-    changes = False
+    conn: sqlite3.Connection = sqlite3.connect(configuration["cwatch"]["DB_FILE"])
+    cursor: sqlite3.Cursor = conn.cursor()
+    changed: bool = False
 
     # Fetch the last two entries
     cursor.execute(
@@ -178,38 +179,40 @@ def detect_changes(configuration, item):
     """,
         (item,),
     )
-    rows = cursor.fetchall()
+    rows: list[Any] = cursor.fetchall()
 
     if len(rows) == 2: # noqa: PLR2004
-        old_json = json.loads(rows[1][0])[0]
-        new_json = json.loads(rows[0][0])[0]
-        changes = compare_json(configuration, old_json, new_json)
+        old_json: dict = json.loads(rows[1][0])[0]
+        new_json: dict = json.loads(rows[0][0])[0]
+        changes: dict = compare_json(configuration=configuration, old=old_json, new=new_json)
         if changes != {}:
-            changes = handle_changes(configuration, item, changes)
+            changed: bool = handle_changes(configuration=configuration, target=item, changes=changes)
         if configuration["cwatch"]["report"] and not configuration["cwatch"]["quiet"]:
             print("- No changes.")
     elif not configuration["cwatch"]["quiet"]:
         print("- Not enough data for comparison.")
 
     conn.close()
-    return changes
+    return changed
 
 
-def compare_json(configuration, old, new):
+def compare_json(configuration, old, new) -> dict:
     """Compare json objects."""
-    simple = configuration["cwatch"]["simple"]
-    verbose = configuration["cwatch"]["verbose"]
+    simple: bool = configuration["cwatch"]["simple"]
+    verbose: bool = configuration["cwatch"]["verbose"]
     if simple:
-        return jsondiff.diff(old, new, syntax="symmetric")
-    diff = json.loads(jsondiff.diff(old, new, syntax="symmetric", dump=True))
+        json_diff: str = cast(str, jsondiff.diff(old, new, syntax="symmetric"))
+        return json.loads(json_diff)
+    json_diff: str = cast(str, jsondiff.diff(old, new, syntax="symmetric", dump=True))
+    diff: dict = json.loads(json_diff)
     for engine in configuration["cwatch"]["ignore_engines"]:
         if engine in diff:
-            removed = diff.pop(engine)
+            removed: dict = diff.pop(engine)
             if verbose:
                 print(f"Removed diff in {engine}: {removed}")
     for combo in configuration["cwatch"]["ignore_engines_partly"]:
-        engine = combo[0]
-        part = combo[1]
+        engine: str = combo[0]
+        part: str = combo[1]
         if engine in diff:
             if part in diff[engine]:
                 removed = diff[engine].pop(part)
@@ -220,75 +223,75 @@ def compare_json(configuration, old, new):
     return diff
 
 
-def report_header(conf):
+def report_header(configuration) -> None:
     """Print header in report mode."""
-    print(conf["cwatch"]["header"])
-    print("=" * len(conf["cwatch"]["header"]))
+    print(configuration["cwatch"]["header"])
+    print("=" * len(configuration["cwatch"]["header"]))
     print("")
     print(f"Report generation start at {datetime.now().isoformat()}")
     print("")
     print("Will report changes in the following engines.")
-    engines = conf["cyberbro"]["engines"]
+    engines:list = configuration["cyberbro"]["engines"]
     engines.sort()
     for engine in engines:
-        if engine not in conf["cwatch"]["ignore_engines"]:
+        if engine not in configuration["cwatch"]["ignore_engines"]:
             print(f"- {engine}")
     print("")
-    if conf["cwatch"]["ignore_engines_partly"]:
+    if configuration["cwatch"]["ignore_engines_partly"]:
         print("Ignore change if the only change is in one of:")
-        for combo in conf["cwatch"]["ignore_engines_partly"]:
+        for combo in configuration["cwatch"]["ignore_engines_partly"]:
             print(f"- {combo[0]} -> {combo[1]}")
         print("")
 
 
-def report_footer(conf):
+def report_footer(configuration) -> None:
     """Print footer in report mode."""
     print("")
     print(f"Report done at {datetime.now().isoformat()}.")
-    if conf["cwatch"]["footer"]:
+    if configuration["cwatch"]["footer"]:
         print("")
-        print(conf["cwatch"]["footer"])
+        print(configuration["cwatch"]["footer"])
     print("")
     print(f"Report generated with cwatch {importlib.metadata.version('cwatch')}.")
 
 
-def get_targets(configuration, targets):
+def get_targets(configuration, targets) -> list:
     """Get targets for check."""
     for domain in configuration["iocs"]["domains"]:
         public_ip = False
         try:
-            addresses = socket.getaddrinfo(domain, "http", proto=socket.IPPROTO_TCP)
+            addresses: list[tuple[socket.AddressFamily, socket.SocketKind, int, str, tuple[str, int] | tuple[str, int, int, int]]] = socket.getaddrinfo(host=domain, port="http", proto=socket.IPPROTO_TCP)
         except Exception as err:
             print(f"Error looking up ip for domain {domain}: {err}")
             sys.exit(1)
         for address in addresses:
-            ip = address[4][0]
-            if ip not in targets and not ipaddress.ip_address(ip).is_private:
+            ip: str = address[4][0]
+            if ip not in targets and not ipaddress.ip_address(address=ip).is_private:
                 public_ip = True
         if public_ip and domain not in targets:
             targets.append(domain)
         for address in addresses:
             ip = address[4][0]
-            if ip not in targets and not ipaddress.ip_address(ip).is_private:
+            if ip not in targets and not ipaddress.ip_address(address=ip).is_private:
                 targets.append(ip)
     return targets
 
-def main():
+def main() -> None:
     """Main function."""
-    targets = []
+    targets: list = []
     changes = False
 
-    with open("cwatch.toml", "rb") as file:
-        conf = tomllib.load(file)
+    with open(file="cwatch.toml", mode="rb") as file:
+        conf: dict[str, Any] = tomllib.load(file)
 
     if conf["cwatch"]["report"]:
-        report_header(conf)
+        report_header(configuration=conf)
 
     if not Path(conf["cwatch"]["DB_FILE"]).is_file():
-        setup_database(conf)
+        setup_database(configuration=conf)
 
     # Create list with domains and their IP addresses
-    get_targets(conf, targets)
+    get_targets(configuration=conf, targets=targets)
 
     # Check for changes
     if conf["cwatch"]["report"]:
@@ -296,17 +299,17 @@ def main():
     for item in targets:
         if conf["cwatch"]["report"] and not conf["cwatch"]["quiet"]:
             print(f"Checking for changes for: {item}")
-        request_id = submit_request(conf, item)
-        results_json = get_response(conf, request_id["link"])
-        save_json_data(conf, item, results_json)
-        if detect_changes(conf, item):
+        request_id: dict = submit_request(configuration=conf, name=item)
+        results_json: dict = get_response(configuration=conf, link=request_id["link"])
+        save_json_data(configuration=conf, item=item, json_data=results_json)
+        if detect_changes(configuration=conf, item=item):
             changes = True
 
     if conf["cwatch"]["report"] and conf["cwatch"]["quiet"] and not changes:
         print("")
         print("No changes to report.")
     if conf["cwatch"]["report"]:
-        report_footer(conf)
+        report_footer(configuration=conf)
 
 
 # Call main if used as a program.
