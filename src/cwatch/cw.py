@@ -9,6 +9,7 @@ import sys
 import time
 import tomllib
 from datetime import datetime
+from http.client import HTTPException
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,7 +19,7 @@ import jsondiff
 
 def submit_request(configuration, name) -> dict:
     """Submit question to Cyberbro."""
-    data: dict[str, Any] = {"text": name, "engines": configuration["cyberbro"]["engines"]}
+    data: dict[str, dict] = {"text": name, "engines": configuration["cyberbro"]["engines"]}
     r: httpx.Response = httpx.post(url=configuration["cyberbro"]["url"] + "/api/analyze", json=data)
     try:
         return json.loads(r.text)
@@ -29,11 +30,15 @@ def submit_request(configuration, name) -> dict:
 
 def get_response(configuration, link) -> dict:
     """Get the response from Cyberbro."""
-    done = False
+    done: bool = False
     r: httpx.Response | None = None
 
     while not done:
-        r = httpx.get(url=configuration["cyberbro"]["url"] + "/api" + link)
+        try:
+            r = httpx.get(url=configuration["cyberbro"]["url"] + "/api" + link)
+        except HTTPException:
+            time.sleep(1)
+            continue
         if r.text != "[]\n":
             done = True
         else:
@@ -45,7 +50,7 @@ def get_response(configuration, link) -> dict:
 
 def setup_database(configuration) -> None:
     """Create database."""
-    conn: sqlite3.Connection = sqlite3.connect(configuration["cwatch"]["DB_FILE"])
+    conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
     cursor: sqlite3.Cursor = conn.cursor()
     cursor.execute(
         """
@@ -64,8 +69,8 @@ def setup_database(configuration) -> None:
 
 def calculate_hash(json_data) -> str:
     """Function to calculate a hash for a JSON object."""
-    json_string: str = json.dumps(json_data, sort_keys=True)
-    return hashlib.sha256(json_string.encode("utf-8")).hexdigest()
+    json_string: str = json.dumps(obj=json_data, sort_keys=True)
+    return hashlib.sha256(string=json_string.encode(encoding="utf-8")).hexdigest()
 
 
 def save_json_data(configuration, item, json_data) -> None:
@@ -74,7 +79,7 @@ def save_json_data(configuration, item, json_data) -> None:
     cursor: sqlite3.Cursor = conn.cursor()
 
     # Calculate hash for the current JSON
-    json_hash = calculate_hash(json_data=json_data)
+    json_hash: str = calculate_hash(json_data=json_data)
 
     # Insert the new JSON data
     cursor.execute(
@@ -144,20 +149,20 @@ def handle_virustotal(change) -> dict:
     return change
 
 
-def handle_changes(configuration, target, changes) -> bool:
+def handle_changes(configuration, target: str, changes: dict) -> bool:
     """Handle changes."""
     if configuration["cwatch"]["quiet"]:
         if "abuseipdb" in changes:
-            changes = handle_abuseipdb(changes)
+            changes = handle_abuseipdb(change=changes)
         if "shodan" in changes:
-            changes = handle_shodan(changes)
+            changes = handle_shodan(change=changes)
         if "threatfox" in changes:
-            changes = handle_threatfox(changes)
+            changes = handle_threatfox(change=changes)
         if "virustotal" in changes:
-            changes = handle_virustotal(changes)
+            changes = handle_virustotal(change=changes)
         if changes != {}:
             print(f"Changes detected for {target}:")
-            print(json.dumps(changes, indent=4))
+            print(json.dumps(obj=changes, indent=4))
             return True
         return False
     print(f"Changes detected for {target}:")
@@ -167,7 +172,7 @@ def handle_changes(configuration, target, changes) -> bool:
 
 def detect_changes(configuration, item) -> bool:
     """Detect changes in json."""
-    conn: sqlite3.Connection = sqlite3.connect(configuration["cwatch"]["DB_FILE"])
+    conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
     cursor: sqlite3.Cursor = conn.cursor()
     changed: bool = False
 
@@ -252,13 +257,23 @@ def report_footer(configuration) -> None:
         print("")
         print(configuration["cwatch"]["footer"])
     print("")
-    print(f"Report generated with cwatch {importlib.metadata.version('cwatch')}.")
+    print(f"Report generated with cwatch {importlib.metadata.version(distribution_name='cwatch')}.")
 
 
 def get_targets(configuration, targets) -> list:
     """Get targets for check."""
+    domain: str
     for domain in configuration["iocs"]["domains"]:
         public_ip = False
+        try:
+            # Handle IP addresses in domain list
+            if ipaddress.ip_address(address=domain) and not ipaddress.ip_address(address=domain).is_private and domain not in targets:
+                targets.append(domain)
+                continue
+            elif ipaddress.ip_address(address=domain).is_private:
+                continue
+        except ValueError:
+            pass
         try:
             addresses: list[tuple[socket.AddressFamily, socket.SocketKind, int, str, tuple[str, int] | tuple[str, int, int, int]]] = socket.getaddrinfo(host=domain, port="http", proto=socket.IPPROTO_TCP)
         except Exception as err:
@@ -278,8 +293,8 @@ def get_targets(configuration, targets) -> list:
 
 def main() -> None:
     """Main function."""
-    targets: list = []
-    changes = False
+    targets: list[str] = []
+    changes: bool = False
 
     with open(file="cwatch.toml", mode="rb") as file:
         conf: dict[str, Any] = tomllib.load(file)
@@ -296,10 +311,14 @@ def main() -> None:
     # Check for changes
     if conf["cwatch"]["report"]:
         print(f"Will check {len(targets)} hosts.")
+    item: str
     for item in targets:
         if conf["cwatch"]["report"] and not conf["cwatch"]["quiet"]:
             print(f"Checking for changes for: {item}")
         request_id: dict = submit_request(configuration=conf, name=item)
+        if not request_id:
+            print(f"Error submitting request for {item}.")
+            continue
         results_json: dict = get_response(configuration=conf, link=request_id["link"])
         save_json_data(configuration=conf, item=item, json_data=results_json)
         if detect_changes(configuration=conf, item=item):
