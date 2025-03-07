@@ -20,7 +20,10 @@ import jsondiff
 def submit_request(configuration, name) -> dict:
     """Submit question to Cyberbro."""
     data: dict[str, dict] = {"text": name, "engines": configuration["cyberbro"]["engines"]}
-    r: httpx.Response = httpx.post(url=configuration["cyberbro"]["url"] + "/api/analyze", json=data)
+    try:
+        r: httpx.Response = httpx.post(url=configuration["cyberbro"]["url"] + "/api/analyze", json=data)
+    except HTTPException:
+        return {}
     try:
         return json.loads(r.text)
     except Exception as err:
@@ -275,18 +278,18 @@ def get_targets(configuration, targets) -> list:
         except ValueError:
             pass
         try:
-            addresses: list[tuple[socket.AddressFamily, socket.SocketKind, int, str, tuple[str, int] | tuple[str, int, int, int]]] = socket.getaddrinfo(host=domain, port="http", proto=socket.IPPROTO_TCP)
+            addresses = socket.getaddrinfo(host=domain, port="http", proto=socket.IPPROTO_TCP)
         except Exception as err:
             print(f"Error looking up ip for domain {domain}: {err}")
             sys.exit(1)
         for address in addresses:
-            ip: str = address[4][0]
+            ip: str = str(address[4][0])
             if ip not in targets and not ipaddress.ip_address(address=ip).is_private:
                 public_ip = True
         if public_ip and domain not in targets:
             targets.append(domain)
         for address in addresses:
-            ip = address[4][0]
+            ip = str(address[4][0])
             if ip not in targets and not ipaddress.ip_address(address=ip).is_private:
                 targets.append(ip)
     return targets
