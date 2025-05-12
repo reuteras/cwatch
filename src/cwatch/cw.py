@@ -13,6 +13,7 @@ from http.client import HTTPException
 from pathlib import Path
 from typing import Any, cast
 
+import httpcore
 import httpx
 import jsondiff
 
@@ -35,11 +36,19 @@ def get_response(configuration, link) -> dict:
     """Get the response from Cyberbro."""
     done: bool = False
     r: httpx.Response | None = None
+    connect_error_count: int = 0
 
     while not done:
         try:
             r = httpx.get(url=configuration["cyberbro"]["url"] + "/api" + link)
         except HTTPException:
+            time.sleep(1)
+            continue
+        except httpcore.ConnectError:
+            if connect_error_count > 5:  # noqa: PLR2004
+                print("Can't connect to server. Exiting.")
+                sys.exit(1)
+            connect_error_count += 1
             time.sleep(1)
             continue
         if r.text != "[]\n":
@@ -101,7 +110,10 @@ def handle_abuseipdb(change) -> dict:
     """Remove change from abuseipdb if no relevant changes."""
     report = True
     if isinstance(change["abuseipdb"], list) and len(change["abuseipdb"]) == 2: # noqa: PLR2004
-        if change["abuseipdb"][1]["reports"] == 0 and change["abuseipdb"][1]["risk_score"] == 0:
+        if "reports" in change["abuseipdb"][1] and "risk_score" in change["abuseipdb"][1]:
+            if change["abuseipdb"][1]["reports"] == 0 and change["abuseipdb"][1]["risk_score"] == 0:
+                report = False
+        else:
             report = False
     if "reports" in change["abuseipdb"] and "risk_score" in change["abuseipdb"]:
         if change["abuseipdb"]["reports"] == 0 and change["abuseipdb"]["risk_score"] == 0:
