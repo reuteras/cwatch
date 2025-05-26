@@ -40,7 +40,7 @@ def get_response(configuration, link) -> dict:
 
     while not done:
         try:
-            r = httpx.get(url=configuration["cyberbro"]["url"] + "/api" + link)
+            r = httpx.get(url=configuration["cyberbro"]["url"] + link)
         except HTTPException:
             time.sleep(1)
             continue
