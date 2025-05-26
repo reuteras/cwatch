@@ -22,7 +22,7 @@ def submit_request(configuration, name) -> dict:
     """Submit question to Cyberbro."""
     data: dict[str, dict] = {"text": name, "engines": configuration["cyberbro"]["engines"]}
     try:
-        r: httpx.Response = httpx.post(url=configuration["cyberbro"]["url"] + "/api/analyze", json=data)
+        r: httpx.Response = httpx.post(url=configuration["cyberbro"]["url"] + "/analyze", json=data)
     except HTTPException:
         return {}
     try:
