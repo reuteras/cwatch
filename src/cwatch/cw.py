@@ -23,7 +23,7 @@ def submit_request(configuration, name) -> dict:
     data: dict[str, dict] = {"text": name, "engines": configuration["cyberbro"]["engines"]}
     try:
         r: httpx.Response = httpx.post(url=configuration["cyberbro"]["url"] + "/analyze", json=data)
-    except HTTPException:
+    except (httpcore.ConnectError, HTTPException):
         return {}
     try:
         return json.loads(r.text)
@@ -331,7 +331,7 @@ def main() -> None:
         if conf["cwatch"]["report"] and not conf["cwatch"]["quiet"]:
             print(f"Checking for changes for: {item}")
         request_id: dict = submit_request(configuration=conf, name=item)
-        if not request_id:
+        if not request_id or request_id == {}:
             print(f"Error submitting request for {item}.")
             continue
         results_json: dict = get_response(configuration=conf, link=request_id["link"])
