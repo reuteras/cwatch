@@ -133,15 +133,19 @@ def handle_shodan(change) -> dict:
 def handle_threatfox(change) -> dict:
     """Remove change from threatfox if no matches."""
     report = True
-    if isinstance(change["threatfox"], list) and len(change["threatfox"]) == 2: # noqa: PLR2004
-        if "count" in change["threatfox"][1] and change["threatfox"][1]["count"] == 0 \
-                and "malware_printable" in change["threatfox"][1] and change["threatfox"][1]["malware_printable"] == []:
-            report = False
-        elif change["threatfox"][1] is None:
-            report = False
-    if change["threatfox"] is None or ("count" in change["threatfox"]):
-        if change["threatfox"]["count"] == 0 and change["threatfox"]["malware_printable"] == []:
-            report = False
+    try:
+        if isinstance(change["threatfox"], list) and len(change["threatfox"]) == 2: # noqa: PLR2004
+            if "count" in change["threatfox"][1] and change["threatfox"][1]["count"] == 0 \
+                    and "malware_printable" in change["threatfox"][1] and change["threatfox"][1]["malware_printable"] == []:
+                report = False
+            elif change["threatfox"][1] is None:
+                report = False
+        if change["threatfox"] is None or ("count" in change["threatfox"]):
+            if change["threatfox"]["count"] == 0 and change["threatfox"]["malware_printable"] == []:
+                report = False
+    except (TypeError, KeyError):
+        # If the key is not present, we assume no matches
+        report = False
     if not report:
         change.pop("threatfox")
     return change
