@@ -143,7 +143,7 @@ def handle_threatfox(change) -> dict:
         if change["threatfox"] is None or ("count" in change["threatfox"]):
             if change["threatfox"]["count"] == 0 and change["threatfox"]["malware_printable"] == []:
                 report = False
-    except (TypeError, KeyError):
+    except (TypeError, KeyError, RuntimeError):
         # If the key is not present, we assume no matches
         report = False
     if not report:
