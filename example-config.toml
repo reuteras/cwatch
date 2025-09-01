@@ -45,3 +45,8 @@ report = true
 simple = false
 verbose = false
 DB_FILE = "cwatch.db"
+
+# New reporting options
+markdown_report = true          # Use markdown formatting for change summaries
+summary_report = true           # Generate summary section at end of report
+detailed_appendix = true        # Include detailed JSON diffs as appendix
