@@ -229,9 +229,18 @@ def format_engine_changes(engine: str, change_data: Any) -> str:
         return str(change_data)
 
 
-def generate_markdown_summary(target: str, changes: dict) -> str:
+def generate_markdown_summary(target: str, changes: dict | list) -> str:
     """Generate a markdown summary of changes."""
     lines = [f"### Changes for {target}"]
+
+    # Handle case where changes is a list instead of dict
+    if isinstance(changes, list):
+        for item in changes:
+            if isinstance(item, str):
+                lines.append(f"\n{item}")
+            else:
+                lines.append(f"\n{json.dumps(item, indent=2)}")
+        return "\n".join(lines)
 
     for engine, change_data in changes.items():
         lines.append(f"\n**{engine.upper()}:**")
