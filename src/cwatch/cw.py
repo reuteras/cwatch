@@ -229,18 +229,9 @@ def format_engine_changes(engine: str, change_data: Any) -> str:
         return str(change_data)
 
 
-def generate_markdown_summary(target: str, changes: dict | list) -> str:
+def generate_markdown_summary(target: str, changes: dict) -> str:
     """Generate a markdown summary of changes."""
     lines = [f"### Changes for {target}"]
-
-    # Handle case where changes is a list instead of dict
-    if isinstance(changes, list):
-        for item in changes:
-            if isinstance(item, str):
-                lines.append(f"\n{item}")
-            else:
-                lines.append(f"\n{json.dumps(item, indent=2)}")
-        return "\n".join(lines)
 
     for engine, change_data in changes.items():
         lines.append(f"\n**{engine.upper()}:**")
@@ -333,8 +324,8 @@ def compare_json(configuration, old, new) -> dict:
     simple: bool = configuration["cwatch"]["simple"]
     verbose: bool = configuration["cwatch"]["verbose"]
     if simple:
-        json_diff: str = cast(str, jsondiff.diff(old, new, syntax="symmetric"))
-        return json.loads(json_diff)
+        diff = jsondiff.diff(old, new, syntax="symmetric")
+        return diff if isinstance(diff, dict) else {}
     json_diff: str = cast(str, jsondiff.diff(old, new, syntax="symmetric", dump=True))
     diff: dict = json.loads(json_diff)
     for engine in configuration["cwatch"]["ignore_engines"]:
