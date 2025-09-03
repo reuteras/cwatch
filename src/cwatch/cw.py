@@ -242,41 +242,38 @@ def generate_markdown_summary(target: str, changes: dict) -> str:
 
 
 def handle_changes(
-    configuration, target: str, changes: dict, all_changes: list | None = None
+    configuration,
+    target: str,
+    changes: dict,
+    all_changes: list | None = None,
+    is_new: bool = False,
 ) -> bool:
     """Handle changes."""
-    if configuration["cwatch"]["quiet"]:
-        if "abuseipdb" in changes:
-            changes = handle_abuseipdb(change=changes)
-        if "shodan" in changes:
-            changes = handle_shodan(change=changes)
-        if "threatfox" in changes:
-            changes = handle_threatfox(change=changes)
-        if "virustotal" in changes:
-            changes = handle_virustotal(change=changes)
-        if changes != {}:
-            # Store changes for summary report
-            if all_changes is not None:
-                all_changes.append({"target": target, "changes": changes.copy()})
+    # Apply filtering to reduce noise
+    if "abuseipdb" in changes:
+        changes = handle_abuseipdb(change=changes)
+    if "shodan" in changes:
+        changes = handle_shodan(change=changes)
+    if "threatfox" in changes:
+        changes = handle_threatfox(change=changes)
+    if "virustotal" in changes:
+        changes = handle_virustotal(change=changes)
 
-            if configuration["cwatch"].get("markdown_report", False):
-                print(generate_markdown_summary(target, changes))
-            else:
-                print(f"Changes detected for {target}:")
-                print(json.dumps(obj=changes, indent=4))
-            return True
-        return False
+    if changes != {} or is_new:
+        # Store changes for detailed appendix
+        if all_changes is not None:
+            all_changes.append(
+                {"target": target, "changes": changes.copy(), "is_new": is_new}
+            )
 
-    # Store changes for summary report
-    if all_changes is not None:
-        all_changes.append({"target": target, "changes": changes.copy()})
-
-    if configuration["cwatch"].get("markdown_report", False):
-        print(generate_markdown_summary(target, changes))
-    else:
-        print(f"Changes detected for {target}:")
-        print(json.dumps(changes, indent=4))
-    return True
+        # Always show human-readable summary
+        if is_new:
+            print(f"### New target: {target}")
+            print("Initial data collected - no comparison available yet.")
+        else:
+            print(generate_markdown_summary(target, changes))
+        return True
+    return False
 
 
 def detect_changes(configuration, item, all_changes: list | None = None) -> bool:
@@ -303,17 +300,22 @@ def detect_changes(configuration, item, all_changes: list | None = None) -> bool
         changes: dict = compare_json(
             configuration=configuration, old=old_json, new=new_json
         )
-        if changes != {}:
-            changed: bool = handle_changes(
-                configuration=configuration,
-                target=item,
-                changes=changes,
-                all_changes=all_changes,
-            )
-        if configuration["cwatch"]["report"] and not configuration["cwatch"]["quiet"]:
-            print("- No changes.")
-    elif not configuration["cwatch"]["quiet"]:
-        print("- Not enough data for comparison.")
+        changed = handle_changes(
+            configuration=configuration,
+            target=item,
+            changes=changes,
+            all_changes=all_changes,
+            is_new=False,
+        )
+    elif len(rows) == 1:
+        # New target - show as initial data
+        changed = handle_changes(
+            configuration=configuration,
+            target=item,
+            changes={},
+            all_changes=all_changes,
+            is_new=True,
+        )
 
     conn.close()
     return changed
@@ -321,19 +323,17 @@ def detect_changes(configuration, item, all_changes: list | None = None) -> bool
 
 def compare_json(configuration, old, new) -> dict:
     """Compare json objects."""
-    simple: bool = configuration["cwatch"]["simple"]
-    verbose: bool = configuration["cwatch"]["verbose"]
-    if simple:
-        diff = jsondiff.diff(old, new, syntax="symmetric")
-        return diff if isinstance(diff, dict) else {}
+    verbose: bool = configuration["cwatch"].get("verbose", False)
     json_diff: str = cast(str, jsondiff.diff(old, new, syntax="symmetric", dump=True))
     diff: dict = json.loads(json_diff)
-    for engine in configuration["cwatch"]["ignore_engines"]:
+
+    # Apply configured filters
+    for engine in configuration["cwatch"].get("ignore_engines", []):
         if engine in diff:
             removed: dict = diff.pop(engine)
             if verbose:
                 print(f"Removed diff in {engine}: {removed}")
-    for combo in configuration["cwatch"]["ignore_engines_partly"]:
+    for combo in configuration["cwatch"].get("ignore_engines_partly", []):
         engine: str = combo[0]
         part: str = combo[1]
         if engine in diff:
@@ -367,30 +367,9 @@ def report_header(configuration) -> None:
         print("")
 
 
-def generate_summary_report(configuration, all_changes: list) -> None:
-    """Generate a summary report of all changes."""
-    if not all_changes:
-        return
-
-    print("\n## Summary of Changes\n")
-
-    for item in all_changes:
-        target = item["target"]
-        changes = item["changes"]
-
-        if configuration["cwatch"].get("markdown_report", False):
-            print(generate_markdown_summary(target, changes))
-            print("")
-        else:
-            print(f"**{target}:**")
-            for engine in changes.keys():
-                print(f"  - {engine}")
-            print("")
-
-
 def generate_detailed_appendix(configuration, all_changes: list) -> None:
     """Generate detailed JSON diff appendix."""
-    if not all_changes or not configuration["cwatch"].get("detailed_appendix", False):
+    if not all_changes:
         return
 
     print("\n---\n")
@@ -399,26 +378,26 @@ def generate_detailed_appendix(configuration, all_changes: list) -> None:
     for item in all_changes:
         target = item["target"]
         changes = item["changes"]
+        is_new = item.get("is_new", False)
 
         print(f"### {target}\n")
-        print("```json")
-        print(json.dumps(changes, indent=2))
-        print("```\n")
+        if is_new:
+            print("*New target - no previous data for comparison*\n")
+        else:
+            print("```json")
+            print(json.dumps(changes, indent=2))
+            print("```\n")
 
 
 def report_footer(configuration, all_changes: list | None = None) -> None:
     """Print footer in report mode."""
-    # Generate summary if we have collected changes and it's enabled
-    if all_changes and configuration["cwatch"].get("summary_report", False):
-        generate_summary_report(configuration, all_changes)
-
-    # Generate detailed appendix if enabled
+    # Always generate detailed appendix if we have changes
     if all_changes:
         generate_detailed_appendix(configuration, all_changes)
 
     print("")
     print(f"Report done at {datetime.now().isoformat()}.")
-    if configuration["cwatch"]["footer"]:
+    if configuration["cwatch"].get("footer"):
         print("")
         print(configuration["cwatch"]["footer"])
     print("")
@@ -474,8 +453,8 @@ def main() -> None:
     with open(file="cwatch.toml", mode="rb") as file:
         conf: dict[str, Any] = tomllib.load(file)
 
-    if conf["cwatch"]["report"]:
-        report_header(configuration=conf)
+    # Always show report header
+    report_header(configuration=conf)
 
     if not Path(conf["cwatch"]["DB_FILE"]).is_file():
         setup_database(configuration=conf)
@@ -484,11 +463,10 @@ def main() -> None:
     get_targets(configuration=conf, targets=targets)
 
     # Check for changes
-    if conf["cwatch"]["report"]:
-        print(f"Will check {len(targets)} hosts.")
+    print(f"Will check {len(targets)} hosts.")
     item: str
     for item in targets:
-        if conf["cwatch"]["report"] and not conf["cwatch"]["quiet"]:
+        if not conf["cwatch"].get("quiet", False):
             print(f"Checking for changes for: {item}")
         request_id: dict = submit_request(configuration=conf, name=item)
         if not request_id or request_id == {}:
@@ -499,11 +477,12 @@ def main() -> None:
         if detect_changes(configuration=conf, item=item, all_changes=all_changes):
             changes = True
 
-    if conf["cwatch"]["report"] and conf["cwatch"]["quiet"] and not changes:
+    if not changes:
         print("")
         print("No changes to report.")
-    if conf["cwatch"]["report"]:
-        report_footer(configuration=conf, all_changes=all_changes)
+
+    # Always show detailed appendix
+    report_footer(configuration=conf, all_changes=all_changes)
 
 
 # Call main if used as a program.

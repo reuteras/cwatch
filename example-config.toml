@@ -29,6 +29,9 @@ engines = [
 [cwatch]
 header = "Report for example.com"
 footer = ""
+DB_FILE = "cwatch.db"
+
+# Filtering options
 ignore_engines = [
     "$delete",
     "reverse_dns",
@@ -40,13 +43,7 @@ ignore_engines = [
 ignore_engines_partly = [
     [ "abuseipdb", "link" ],
 ]
-quiet = true
-report = true
-simple = false
-verbose = false
-DB_FILE = "cwatch.db"
 
-# New reporting options
-markdown_report = true          # Use markdown formatting for change summaries
-summary_report = true           # Generate summary section at end of report
-detailed_appendix = true        # Include detailed JSON diffs as appendix
+# Output control
+quiet = false                   # Set to true to suppress "Checking for changes for: [host]" messages
+verbose = false                 # Set to true to show debug information about filtering
