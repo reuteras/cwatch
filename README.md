@@ -29,6 +29,8 @@ Designed to be run from __cron__.
 
 ## Development
 
-See [RELEASING.md](RELEASING.md) for information about the release process.
+For information about contributing to this project, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+For information about the release process, see [RELEASING.md](RELEASING.md).
 
 Changes are tracked in [CHANGELOG.md](CHANGELOG.md).

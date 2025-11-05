@@ -1,121 +1,206 @@
 # Release Process
 
-This document describes how to create a new release of cwatch.
+This document describes how releases work in cwatch. The process is **fully automated** using Release Please and Conventional Commits.
 
-## Automated Release Process
+## How It Works
 
-The project uses GitHub Actions to automate releases. When you push a version tag, it will automatically:
-1. Build the package
-2. Create a GitHub release with changelog notes
-3. Publish to PyPI
+Releases are automatic! You don't manually:
+- ❌ Update CHANGELOG.md
+- ❌ Bump version numbers
+- ❌ Create git tags
+- ❌ Publish to PyPI
 
-## Prerequisites
+Instead, the system does it for you based on your commit messages.
 
-Before your first release, you need to set up PyPI publishing:
+## The Automated Process
 
-1. Create a PyPI API token at https://pypi.org/manage/account/token/
-2. Add the token as a GitHub secret:
-   - Go to: `https://github.com/reuteras/cwatch/settings/secrets/actions`
-   - Click "New repository secret"
-   - Name: `PYPI_API_TOKEN`
-   - Value: Your PyPI token (starts with `pypi-`)
+### 1. Write Code with Conventional Commits
 
-**Note:** The workflow uses Trusted Publishing (PyPI's OIDC), so you may not need a token if you set that up. See [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/).
-
-## Step-by-Step Release
-
-### 1. Update the version
-
-Edit `pyproject.toml` and bump the version:
-
-```toml
-[project]
-name = "cwatch"
-version = "0.5.0"  # Change this
-```
-
-### 2. Update the CHANGELOG
-
-Edit `CHANGELOG.md`:
-
-- Move items from `[Unreleased]` section to a new version section
-- Add the release date
-- Update the comparison links at the bottom
-
-Example:
-
-```markdown
-## [Unreleased]
-
-## [0.5.0] - 2024-11-05
-
-### Added
-- Retry decorator with exponential backoff for network operations
-...
-
-[Unreleased]: https://github.com/reuteras/cwatch/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/reuteras/cwatch/compare/v0.4.0...v0.5.0
-```
-
-### 3. Commit the changes
+Use [Conventional Commits](https://www.conventionalcommits.org/) format for your commit messages:
 
 ```bash
-git add pyproject.toml CHANGELOG.md
-git commit -m "Bump version to 0.5.0"
+# Adding a new feature (triggers minor version bump: 0.4.0 → 0.5.0)
+git commit -m "feat: add automatic retry for network failures"
+
+# Fixing a bug (triggers patch version bump: 0.4.0 → 0.4.1)
+git commit -m "fix: prevent crash on DNS lookup failure"
+
+# Breaking change (triggers major version bump: 0.4.0 → 1.0.0)
+git commit -m "feat!: change configuration format to YAML"
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full commit message guidelines.
+
+### 2. Push to Main Branch
+
+```bash
 git push origin main
 ```
 
-### 4. Create and push the tag
+### 3. Release Please Creates a PR
+
+After your commits are pushed, **Release Please** automatically:
+- Analyzes your commit messages
+- Determines the next version number (based on feat/fix/BREAKING CHANGE)
+- Generates/updates CHANGELOG.md
+- Updates version in `pyproject.toml`
+- Creates or updates a "Release PR"
+
+The PR will be titled something like: `chore(main): release 0.5.0`
+
+### 4. Review and Merge the Release PR
+
+- Review the automatically generated changelog
+- Check the version bump is correct
+- Merge the PR when ready to release
+
+### 5. Automatic Publication
+
+When you merge the Release PR, the workflow automatically:
+- ✅ Creates a GitHub Release with the changelog
+- ✅ Builds the package with `uv`
+- ✅ Publishes to PyPI
+- ✅ Tags the release (e.g., `v0.5.0`)
+
+## Version Numbers Explained
+
+Version bumps are determined by commit types:
+
+| Commit Type | Version Bump | Example |
+|------------|--------------|---------|
+| `fix:` | PATCH (0.4.0 → 0.4.1) | Bug fixes |
+| `feat:` | MINOR (0.4.0 → 0.5.0) | New features |
+| `BREAKING CHANGE:` or `!` | MAJOR (0.4.0 → 1.0.0) | Breaking changes |
+| `docs:`, `chore:`, etc. | None | No version bump |
+
+Multiple commits are combined. For example:
+- 3 `fix:` commits + 2 `feat:` commits = MINOR bump (0.4.0 → 0.5.0)
+- 1 `feat!:` commit = MAJOR bump (0.4.0 → 1.0.0)
+
+## Examples
+
+### Example 1: Bug Fix Release
 
 ```bash
-git tag -a v0.5.0 -m "Release version 0.5.0"
-git push origin v0.5.0
+# Make changes and commit with fix type
+git commit -m "fix: handle timeout errors gracefully"
+git push origin main
+
+# Release Please creates PR: "chore(main): release 0.4.1"
+# Merge the PR → v0.4.1 is automatically released
 ```
 
-### 5. Monitor the release
-
-- GitHub Actions will automatically run: https://github.com/reuteras/cwatch/actions
-- Check the release appears: https://github.com/reuteras/cwatch/releases
-- Verify PyPI publication: https://pypi.org/project/cwatch/
-
-## Manual Release (Fallback)
-
-If the automated release fails, you can publish manually:
+### Example 2: Feature Release
 
 ```bash
-# Build the package
-uv build
+# Add a new feature
+git commit -m "feat: add support for custom retry delays"
+git push origin main
 
-# Publish to PyPI
-uv publish
-# Or: python -m twine upload dist/*
+# Release Please creates PR: "chore(main): release 0.5.0"
+# Merge the PR → v0.5.0 is automatically released
 ```
 
-## Versioning
+### Example 3: Multiple Changes
 
-This project follows [Semantic Versioning](https://semver.org/):
+```bash
+# Multiple commits
+git commit -m "fix: improve error messages"
+git commit -m "feat: add metrics tracking"
+git commit -m "docs: update README with examples"
+git push origin main
 
-- **MAJOR** version (1.0.0): Incompatible API changes
-- **MINOR** version (0.5.0): New functionality, backwards compatible
-- **PATCH** version (0.4.1): Bug fixes, backwards compatible
+# Release Please combines all changes
+# Creates PR: "chore(main): release 0.5.0" (feat wins over fix)
+# Changelog includes all three changes
+# Merge the PR → v0.5.0 is automatically released
+```
+
+## One-Time Setup for PyPI Publishing
+
+Before your first automated release, you need to configure PyPI publishing. Choose **Option A** (recommended) or **Option B**:
+
+### Option A: Trusted Publishing (Recommended)
+
+1. Go to https://pypi.org/manage/account/publishing/
+2. Click "Add a new pending publisher"
+3. Fill in:
+   - **PyPI Project Name**: `cwatch`
+   - **Owner**: `reuteras`
+   - **Repository name**: `cwatch`
+   - **Workflow name**: `release-please.yml`
+   - **Environment name**: (leave blank)
+4. Click "Add"
+
+This is more secure and doesn't require storing secrets.
+
+### Option B: API Token (Alternative)
+
+1. Create a token at https://pypi.org/manage/account/token/
+2. Go to https://github.com/reuteras/cwatch/settings/secrets/actions
+3. Click "New repository secret"
+4. Name: `PYPI_API_TOKEN`
+5. Value: Your PyPI token (starts with `pypi-`)
+6. Click "Add secret"
+
+Then update `.github/workflows/release-please.yml` to use the token:
+```yaml
+- name: Publish to PyPI
+  uses: pypa/gh-action-pypi-publish@release/v1
+  with:
+    password: ${{ secrets.PYPI_API_TOKEN }}
+```
 
 ## Troubleshooting
 
-### Version mismatch error
+### Release PR not created
 
-If the workflow fails with a version mismatch:
-- Ensure `pyproject.toml` version matches the git tag
-- If tag is v0.5.0, version should be "0.5.0" (without the 'v')
+**Issue**: After pushing commits, no release PR appears.
 
-### PyPI authentication failed
+**Solutions**:
+- Wait a few minutes (the workflow may be running)
+- Check the Actions tab: https://github.com/reuteras/cwatch/actions
+- Ensure commits use conventional commit format
+- Check commits have `feat:` or `fix:` type (not just `chore:` or `docs:`)
 
-If PyPI publishing fails:
-- Check that `PYPI_API_TOKEN` secret is set correctly
-- Or set up Trusted Publishing on PyPI for this repository
+### Wrong version number in PR
 
-### Build failed
+**Issue**: Release Please suggests the wrong version bump.
 
-If the build fails:
-- Test locally first: `uv build`
-- Check that all tests pass: `uv run pytest` (if tests exist)
-- Verify linting passes: `uv run ruff check src/`
+**Solutions**:
+- Check your commit messages follow the correct format
+- Remember: `feat:` = minor, `fix:` = patch, `!` or `BREAKING CHANGE:` = major
+- You can manually edit the release PR if needed
+
+### PyPI publishing failed
+
+**Issue**: Release is created on GitHub but not published to PyPI.
+
+**Solutions**:
+- Check Trusted Publishing is configured correctly on PyPI
+- Or verify `PYPI_API_TOKEN` secret is set correctly
+- Check the workflow logs in the Actions tab
+
+### Need to make a manual release
+
+**Issue**: You need to release without conventional commits.
+
+**Solutions**:
+```bash
+# Manually update version in pyproject.toml
+# Manually update CHANGELOG.md
+git add pyproject.toml CHANGELOG.md
+git commit -m "chore: release 0.5.0"
+git tag v0.5.0
+git push origin main --tags
+
+# Then manually build and publish:
+uv build
+uv publish
+```
+
+## More Information
+
+- [Conventional Commits](https://www.conventionalcommits.org/)
+- [Release Please Documentation](https://github.com/googleapis/release-please)
+- [Contributing Guidelines](CONTRIBUTING.md)
