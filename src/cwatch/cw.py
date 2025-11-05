@@ -1,4 +1,5 @@
 """cwatch is a tool to monitor cyberbro for changes for questions."""
+import functools
 import hashlib
 import importlib.metadata
 import ipaddress
@@ -8,6 +9,7 @@ import sqlite3
 import sys
 import time
 import tomllib
+from collections.abc import Callable
 from datetime import datetime
 from http.client import HTTPException
 from pathlib import Path
@@ -17,66 +19,162 @@ import httpcore
 import httpx
 import jsondiff
 
+# Configuration for retries
+MAX_RETRIES = 5
+INITIAL_RETRY_DELAY = 1.0
+MAX_RETRY_DELAY = 30.0
+HTTP_TIMEOUT = 30.0
 
+
+def retry_with_backoff(
+    max_retries: int = MAX_RETRIES,
+    initial_delay: float = INITIAL_RETRY_DELAY,
+    max_delay: float = MAX_RETRY_DELAY,
+    exceptions: tuple = (httpcore.ConnectError, HTTPException, httpx.TimeoutException, httpx.ConnectError)
+) -> Callable:
+    """Decorator to retry a function with exponential backoff.
+
+    Args:
+        max_retries: Maximum number of retry attempts
+        initial_delay: Initial delay between retries in seconds
+        max_delay: Maximum delay between retries in seconds
+        exceptions: Tuple of exceptions to catch and retry on
+
+    Returns:
+        Decorated function with retry logic
+    """
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as err:
+                    if attempt == max_retries:
+                        print(f"Failed after {max_retries} retries in {func.__name__}: {err}")
+                        return None
+
+                    print(f"Attempt {attempt + 1}/{max_retries + 1} failed in {func.__name__}: {err}. Retrying in {delay:.1f}s...")
+                    time.sleep(delay)
+                    delay = min(delay * 2, max_delay)  # Exponential backoff with cap
+                except Exception as err:
+                    # For unexpected exceptions, don't retry
+                    print(f"Unexpected error in {func.__name__}: {err}")
+                    return None
+
+            return None
+        return wrapper
+    return decorator
+
+
+@retry_with_backoff()
 def submit_request(configuration, name) -> dict:
-    """Submit question to Cyberbro."""
+    """Submit question to Cyberbro with retry logic.
+
+    Args:
+        configuration: Configuration dictionary
+        name: Target name to query
+
+    Returns:
+        Response dictionary or empty dict on failure
+    """
     data: dict[str, dict] = {"text": name, "engines": configuration["cyberbro"]["engines"]}
-    try:
-        r: httpx.Response = httpx.post(url=configuration["cyberbro"]["url"] + "/analyze", json=data)
-    except (httpcore.ConnectError, HTTPException):
-        return {}
+    r: httpx.Response = httpx.post(
+        url=configuration["cyberbro"]["url"] + "/analyze",
+        json=data,
+        timeout=HTTP_TIMEOUT
+    )
     try:
         return json.loads(r.text)
     except Exception as err:
-        print(f"Error submitting request: {r.text}. Error was {err}")
+        print(f"Error parsing response for {name}: {r.text}. Error was {err}")
         return {}
 
 
 def get_response(configuration, link) -> dict:
-    """Get the response from Cyberbro."""
+    """Get the response from Cyberbro with polling and retry logic.
+
+    Args:
+        configuration: Configuration dictionary
+        link: API endpoint link to poll
+
+    Returns:
+        Response dictionary or empty dict on failure
+    """
     done: bool = False
     r: httpx.Response | None = None
     connect_error_count: int = 0
+    delay: float = INITIAL_RETRY_DELAY
 
-    while not done:
+    while not done and connect_error_count <= MAX_RETRIES:
         try:
-            r = httpx.get(url=configuration["cyberbro"]["url"] + link)
-        except HTTPException:
-            time.sleep(1)
-            continue
-        except httpcore.ConnectError:
-            if connect_error_count > 5:  # noqa: PLR2004
-                print("Can't connect to server. Exiting.")
-                sys.exit(1)
+            r = httpx.get(
+                url=configuration["cyberbro"]["url"] + link,
+                timeout=HTTP_TIMEOUT
+            )
+            # Reset error count on successful connection
+            connect_error_count = 0
+            delay = INITIAL_RETRY_DELAY
+
+            if r.text != "[]\n":
+                done = True
+            else:
+                time.sleep(1)
+        except (HTTPException, httpcore.ConnectError, httpx.TimeoutException, httpx.ConnectError) as err:
             connect_error_count += 1
-            time.sleep(1)
+            if connect_error_count > MAX_RETRIES:
+                print(f"Failed to connect to server after {MAX_RETRIES} retries: {err}")
+                return {}
+            print(f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...")
+            time.sleep(delay)
+            delay = min(delay * 2, MAX_RETRY_DELAY)
             continue
-        if r.text != "[]\n":
-            done = True
-        else:
-            time.sleep(1)
 
-    assert r is not None
-    return json.loads(r.text)
+    if r is None:
+        print("Failed to get response from server.")
+        return {}
+
+    try:
+        return json.loads(r.text)
+    except Exception as err:
+        print(f"Error parsing response: {r.text}. Error was {err}")
+        return {}
 
 
-def setup_database(configuration) -> None:
-    """Create database."""
-    conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
-    cursor: sqlite3.Cursor = conn.cursor()
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS json_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            target TEXT NOT NULL,
-            timestamp TEXT NOT NULL,
-            json_hash TEXT NOT NULL,
-            json_content TEXT NOT NULL
-        )
+def setup_database(configuration) -> bool:
+    """Create database with error handling.
+
+    Args:
+        configuration: Configuration dictionary
+
+    Returns:
+        True if successful, False otherwise
     """
-    )
-    conn.commit()
-    conn.close()
+    try:
+        conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
+        cursor: sqlite3.Cursor = conn.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS json_data (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                json_hash TEXT NOT NULL,
+                json_content TEXT NOT NULL
+            )
+        """
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.Error as err:
+        print(f"Database error during setup: {err}")
+        return False
+    except Exception as err:
+        print(f"Unexpected error during database setup: {err}")
+        return False
 
 
 def calculate_hash(json_data) -> str:
@@ -85,25 +183,42 @@ def calculate_hash(json_data) -> str:
     return hashlib.sha256(string=json_string.encode(encoding="utf-8")).hexdigest()
 
 
-def save_json_data(configuration, item, json_data) -> None:
-    """Save JSON data if changes are detected."""
-    conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
-    cursor: sqlite3.Cursor = conn.cursor()
+def save_json_data(configuration, item, json_data) -> bool:
+    """Save JSON data if changes are detected.
 
-    # Calculate hash for the current JSON
-    json_hash: str = calculate_hash(json_data=json_data)
+    Args:
+        configuration: Configuration dictionary
+        item: Target name
+        json_data: JSON data to save
 
-    # Insert the new JSON data
-    cursor.execute(
-        """
-        INSERT INTO json_data (target, timestamp, json_hash, json_content)
-        VALUES (?, ?, ?, ?)
-    """,
-        (item, datetime.now().isoformat(), json_hash, json.dumps(json_data)),
-    )
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
+        cursor: sqlite3.Cursor = conn.cursor()
 
-    conn.commit()
-    conn.close()
+        # Calculate hash for the current JSON
+        json_hash: str = calculate_hash(json_data=json_data)
+
+        # Insert the new JSON data
+        cursor.execute(
+            """
+            INSERT INTO json_data (target, timestamp, json_hash, json_content)
+            VALUES (?, ?, ?, ?)
+        """,
+            (item, datetime.now().isoformat(), json_hash, json.dumps(json_data)),
+        )
+
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.Error as err:
+        print(f"Database error saving data for {item}: {err}")
+        return False
+    except Exception as err:
+        print(f"Unexpected error saving data for {item}: {err}")
+        return False
 
 
 def handle_abuseipdb(change) -> dict:
@@ -190,34 +305,49 @@ def handle_changes(configuration, target: str, changes: dict) -> bool:
 
 
 def detect_changes(configuration, item) -> bool:
-    """Detect changes in json."""
-    conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
-    cursor: sqlite3.Cursor = conn.cursor()
-    changed: bool = False
+    """Detect changes in json with error handling.
 
-    # Fetch the last two entries
-    cursor.execute(
-        """
-        SELECT json_content FROM json_data WHERE target = ?
-        ORDER BY id DESC LIMIT 2
-    """,
-        (item,),
-    )
-    rows: list[Any] = cursor.fetchall()
+    Args:
+        configuration: Configuration dictionary
+        item: Target name
 
-    if len(rows) == 2: # noqa: PLR2004
-        old_json: dict = json.loads(rows[1][0])[0]
-        new_json: dict = json.loads(rows[0][0])[0]
-        changes: dict = compare_json(configuration=configuration, old=old_json, new=new_json)
-        if changes != {}:
-            changed: bool = handle_changes(configuration=configuration, target=item, changes=changes)
-        if configuration["cwatch"]["report"] and not configuration["cwatch"]["quiet"]:
-            print("- No changes.")
-    elif not configuration["cwatch"]["quiet"]:
-        print("- Not enough data for comparison.")
+    Returns:
+        True if changes detected, False otherwise
+    """
+    try:
+        conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
+        cursor: sqlite3.Cursor = conn.cursor()
+        changed: bool = False
 
-    conn.close()
-    return changed
+        # Fetch the last two entries
+        cursor.execute(
+            """
+            SELECT json_content FROM json_data WHERE target = ?
+            ORDER BY id DESC LIMIT 2
+        """,
+            (item,),
+        )
+        rows: list[Any] = cursor.fetchall()
+
+        if len(rows) == 2: # noqa: PLR2004
+            old_json: dict = json.loads(rows[1][0])[0]
+            new_json: dict = json.loads(rows[0][0])[0]
+            changes: dict = compare_json(configuration=configuration, old=old_json, new=new_json)
+            if changes != {}:
+                changed = handle_changes(configuration=configuration, target=item, changes=changes)
+            if configuration["cwatch"]["report"] and not configuration["cwatch"]["quiet"]:
+                print("- No changes.")
+        elif not configuration["cwatch"]["quiet"]:
+            print("- Not enough data for comparison.")
+
+        conn.close()
+        return changed
+    except sqlite3.Error as err:
+        print(f"Database error detecting changes for {item}: {err}")
+        return False
+    except Exception as err:
+        print(f"Unexpected error detecting changes for {item}: {err}")
+        return False
 
 
 def compare_json(configuration, old, new) -> dict:
@@ -279,8 +409,16 @@ def report_footer(configuration) -> None:
     print(f"Report generated with cwatch {importlib.metadata.version(distribution_name='cwatch')}.")
 
 
-def get_targets(configuration, targets) -> list:
-    """Get targets for check."""
+def get_targets(configuration, targets) -> list:  # noqa: PLR0912
+    """Get targets for check with error handling.
+
+    Args:
+        configuration: Configuration dictionary
+        targets: List to append targets to
+
+    Returns:
+        List of target IPs and domains
+    """
     domain: str
     for domain in configuration["iocs"]["domains"]:
         public_ip = False
@@ -293,11 +431,28 @@ def get_targets(configuration, targets) -> list:
                 continue
         except ValueError:
             pass
-        try:
-            addresses = socket.getaddrinfo(host=domain, port="http", proto=socket.IPPROTO_TCP)
-        except Exception as err:
-            print(f"Error looking up ip for domain {domain}: {err}")
-            sys.exit(1)
+
+        # DNS lookup with retry logic
+        addresses = None
+        delay = INITIAL_RETRY_DELAY
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                addresses = socket.getaddrinfo(host=domain, port="http", proto=socket.IPPROTO_TCP)
+                break
+            except socket.gaierror as err:
+                if attempt == MAX_RETRIES:
+                    print(f"Failed to lookup DNS for {domain} after {MAX_RETRIES} retries: {err}. Skipping this domain.")
+                    break
+                print(f"DNS lookup attempt {attempt + 1}/{MAX_RETRIES + 1} failed for {domain}: {err}. Retrying in {delay:.1f}s...")
+                time.sleep(delay)
+                delay = min(delay * 2, MAX_RETRY_DELAY)
+            except Exception as err:
+                print(f"Unexpected error looking up {domain}: {err}. Skipping this domain.")
+                break
+
+        if addresses is None:
+            continue
+
         for address in addresses:
             ip: str = str(address[4][0])
             if ip not in targets and not ipaddress.ip_address(address=ip).is_private:
@@ -310,22 +465,41 @@ def get_targets(configuration, targets) -> list:
                 targets.append(ip)
     return targets
 
-def main() -> None:
-    """Main function."""
+def main() -> None:  # noqa: PLR0912
+    """Main function with comprehensive error handling."""
     targets: list[str] = []
     changes: bool = False
 
-    with open(file="cwatch.toml", mode="rb") as file:
-        conf: dict[str, Any] = tomllib.load(file)
+    # Load configuration with error handling
+    try:
+        with open(file="cwatch.toml", mode="rb") as file:
+            conf: dict[str, Any] = tomllib.load(file)
+    except FileNotFoundError:
+        print("Error: Configuration file 'cwatch.toml' not found in current directory.")
+        print("Please create a configuration file based on 'example-config.toml'.")
+        sys.exit(1)
+    except tomllib.TOMLDecodeError as err:
+        print(f"Error: Invalid TOML configuration file: {err}")
+        sys.exit(1)
+    except Exception as err:
+        print(f"Error loading configuration: {err}")
+        sys.exit(1)
 
     if conf["cwatch"]["report"]:
         report_header(configuration=conf)
 
+    # Setup database if needed
     if not Path(conf["cwatch"]["DB_FILE"]).is_file():
-        setup_database(configuration=conf)
+        if not setup_database(configuration=conf):
+            print("Error: Failed to setup database. Exiting.")
+            sys.exit(1)
 
     # Create list with domains and their IP addresses
     get_targets(configuration=conf, targets=targets)
+
+    if not targets:
+        print("Warning: No valid targets found. Exiting.")
+        sys.exit(0)
 
     # Check for changes
     if conf["cwatch"]["report"]:
@@ -334,12 +508,21 @@ def main() -> None:
     for item in targets:
         if conf["cwatch"]["report"] and not conf["cwatch"]["quiet"]:
             print(f"Checking for changes for: {item}")
-        request_id: dict = submit_request(configuration=conf, name=item)
+
+        request_id: dict | None = submit_request(configuration=conf, name=item)
         if not request_id or request_id == {}:
-            print(f"Error submitting request for {item}.")
+            print(f"Error: Failed to submit request for {item}. Skipping.")
             continue
+
         results_json: dict = get_response(configuration=conf, link=request_id["link"])
-        save_json_data(configuration=conf, item=item, json_data=results_json)
+        if not results_json or results_json == {}:
+            print(f"Error: Failed to get response for {item}. Skipping.")
+            continue
+
+        if not save_json_data(configuration=conf, item=item, json_data=results_json):
+            print(f"Error: Failed to save data for {item}. Skipping change detection.")
+            continue
+
         if detect_changes(configuration=conf, item=item):
             changes = True
 
