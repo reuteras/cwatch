@@ -26,3 +26,9 @@ uv run cwatch
 ```
 
 Designed to be run from __cron__.
+
+## Development
+
+See [RELEASING.md](RELEASING.md) for information about the release process.
+
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md).
