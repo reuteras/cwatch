@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/reuteras/cwatch/compare/v0.4.0...v0.4.1) (2025-11-05)
+
+
+### Documentation
+
+* add PR description for Release Please setup ([8228b98](https://github.com/reuteras/cwatch/commit/8228b989a92a7339e8b448aaaae4fcce1fd78737))
+
 ## [0.4.0](https://github.com/reuteras/cwatch/compare/v0.2.2...v0.4.0) (2024-11-05)
 
 
