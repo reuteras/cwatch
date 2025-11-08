@@ -1,7 +1,6 @@
 """Tests for database operations."""
 import json
 import sqlite3
-from datetime import datetime
 
 import pytest
 

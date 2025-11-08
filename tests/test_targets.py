@@ -1,5 +1,4 @@
 """Tests for target resolution and handling."""
-import ipaddress
 import socket
 
 import pytest

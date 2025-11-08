@@ -1,9 +1,8 @@
 """Tests for configuration loading."""
-import tempfile
-from pathlib import Path
+
+import tomllib
 
 import pytest
-import tomllib
 
 from cwatch.cw import main
 
