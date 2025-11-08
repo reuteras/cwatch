@@ -47,4 +47,4 @@ verbose = false
 DB_FILE = "cwatch.db"
 output_format = "text"  # Options: text, json, html
 # output_file = "report.html"  # Optional: write to file instead of stdout
-# To output email format to stdout (useful for cron): use --email-stdout flag
+# For cron: use --email-stdout flag to output multipart MIME email
