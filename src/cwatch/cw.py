@@ -517,19 +517,19 @@ def main() -> None:
     reporter = get_reporter(report_format, conf)
     report = reporter.generate(collected_data)
 
-    # Output report to stdout/file
-    output_destination = conf["cwatch"].get("output_file")
-    if output_destination:
-        with open(output_destination, "w") as f:
-            f.write(report)
-    else:
-        print(report)
-
-    # Handle email output
+    # Handle email output (for cron)
     if args.email_stdout:
         from cwatch.email_sender import output_email_to_stdout  # noqa: PLC0415
 
         output_email_to_stdout(conf, collected_data)
+    else:
+        # Output report to stdout/file
+        output_destination = conf["cwatch"].get("output_file")
+        if output_destination:
+            with open(output_destination, "w") as f:
+                f.write(report)
+        else:
+            print(report)
 
     # Exit code based on results
     sys.exit(0 if collected_data.successful > 0 else 1)

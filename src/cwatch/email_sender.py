@@ -10,7 +10,7 @@ def output_email_to_stdout(configuration: dict, collected_data: CollectedData) -
     """Output email report to stdout as multipart MIME message.
 
     Creates a proper multipart/alternative email with both text and HTML versions
-    that can be piped to sendmail or similar tools.
+    suitable for cron jobs (cron will automatically email the output).
 
     Args:
         configuration: Configuration dictionary
