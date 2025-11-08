@@ -25,11 +25,10 @@ repos:
     hooks:
       - id: editorconfig-checker
         alias: ec
-  # Temporarily disabled due to dependency issues
-  # - repo: https://github.com/owenlamont/uv-secure
-  #   rev: 0.13.0
-  #   hooks:
-  #     - id: uv-secure
+  - repo: https://github.com/owenlamont/uv-secure
+    rev: 0.14.4
+    hooks:
+      - id: uv-secure
   - repo: local
     hooks:
       - id: pytest
