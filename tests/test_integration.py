@@ -351,7 +351,7 @@ def test_get_reporter_html(sample_config):
 
 @pytest.mark.integration
 def test_email_stdout_output(sample_config, capsys):
-    """Test email output to stdout."""
+    """Test email output to stdout as multipart MIME message."""
     from cwatch.email_sender import output_email_to_stdout  # noqa: PLC0415
 
     target1 = TargetResult(
@@ -376,9 +376,11 @@ def test_email_stdout_output(sample_config, capsys):
     output_email_to_stdout(sample_config, collected_data)
     captured = capsys.readouterr()
 
-    # Verify output contains expected content
-    assert "Subject:" in captured.out
-    assert "1 change(s) detected" in captured.out
-    assert "Plain Text Version" in captured.out
-    assert "HTML Version" in captured.out
+    # Verify output is a proper MIME multipart message
+    assert "Subject: cwatch Report: 1 change(s) detected" in captured.out
+    assert "From: cwatch@localhost" in captured.out
+    assert "To: admin@localhost" in captured.out
+    assert "Content-Type: multipart/alternative" in captured.out
+    assert "Content-Type: text/plain" in captured.out
+    assert "Content-Type: text/html" in captured.out
     assert "8.8.8.8" in captured.out

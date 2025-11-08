@@ -1,10 +1,16 @@
 """Email output functionality for cwatch."""
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from cwatch.data_structures import CollectedData
 from cwatch.reporters import HtmlReporter, TextReporter
 
 
 def output_email_to_stdout(configuration: dict, collected_data: CollectedData) -> None:
-    """Output email report to stdout in email format.
+    """Output email report to stdout as multipart MIME message.
+
+    Creates a proper multipart/alternative email with both text and HTML versions
+    that can be piped to sendmail or similar tools.
 
     Args:
         configuration: Configuration dictionary
@@ -25,18 +31,22 @@ def output_email_to_stdout(configuration: dict, collected_data: CollectedData) -
         else:
             subject = "cwatch Report: No changes"
 
-        # Output in email format (headers + body)
-        print("=" * 70)
-        print(f"Subject: {subject}")
-        print("=" * 70)
-        print()
-        print("--- Plain Text Version ---")
-        print(text_content)
-        print()
-        print("=" * 70)
-        print("--- HTML Version ---")
-        print(html_content)
-        print("=" * 70)
+        # Create multipart message
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = "cwatch@localhost"
+        msg["To"] = "admin@localhost"
+
+        # Attach both versions (plain text first, then HTML)
+        # Email clients will prefer the last alternative (HTML)
+        text_part = MIMEText(text_content, "plain")
+        html_part = MIMEText(html_content, "html")
+
+        msg.attach(text_part)
+        msg.attach(html_part)
+
+        # Output the complete message
+        print(msg.as_string())
 
     except Exception as e:
         print(f"Error generating email output: {e}")
