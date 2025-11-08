@@ -350,68 +350,9 @@ def test_get_reporter_html(sample_config):
 
 
 @pytest.mark.integration
-def test_email_sending_disabled(sample_config):
-    """Test email sending when disabled."""
-    from cwatch.email_sender import send_email_report  # noqa: PLC0415
-
-    # Email disabled
-    sample_config["email"] = {"enabled": False}
-
-    collected_data = CollectedData(
-        targets=[],
-        configuration=sample_config,
-        collection_start=datetime.now(),
-        collection_end=datetime.now(),
-        total_targets=0,
-        successful=0,
-        failed=0,
-    )
-
-    result = send_email_report(sample_config, collected_data)
-    assert result is False
-
-
-@pytest.mark.integration
-def test_email_only_on_changes_no_changes(sample_config):
-    """Test email not sent when no changes and only_on_changes=True."""
-    from cwatch.email_sender import send_email_report  # noqa: PLC0415
-
-    sample_config["email"] = {
-        "enabled": True,
-        "only_on_changes": True,
-        "from": "test@example.com",
-        "to": ["admin@example.com"],
-        "smtp_host": "localhost",
-    }
-
-    # No changes
-    target1 = TargetResult(
-        target="8.8.8.8",
-        success=True,
-        timestamp=datetime.now(),
-        response={},
-        changes=None,
-        errors=[],
-    )
-
-    collected_data = CollectedData(
-        targets=[target1],
-        configuration=sample_config,
-        collection_start=datetime.now(),
-        collection_end=datetime.now(),
-        total_targets=1,
-        successful=1,
-        failed=0,
-    )
-
-    result = send_email_report(sample_config, collected_data)
-    assert result is False
-
-
-@pytest.mark.integration
-def test_email_subject_generation(sample_config):
-    """Test email subject line generation."""
-    from cwatch.email_sender import _generate_subject  # noqa: PLC0415
+def test_email_stdout_output(sample_config, capsys):
+    """Test email output to stdout as multipart MIME message."""
+    from cwatch.email_sender import output_email_to_stdout  # noqa: PLC0415
 
     target1 = TargetResult(
         target="8.8.8.8",
@@ -432,13 +373,14 @@ def test_email_subject_generation(sample_config):
         failed=0,
     )
 
-    # Test default subject
-    email_config = {"subject": "cwatch Report"}
-    subject = _generate_subject(email_config, collected_data)
-    assert "1" in subject
-    assert "change" in subject.lower()
+    output_email_to_stdout(sample_config, collected_data)
+    captured = capsys.readouterr()
 
-    # Test with placeholder
-    email_config = {"subject": "Security Report: {changes} changes"}
-    subject = _generate_subject(email_config, collected_data)
-    assert "1 changes" in subject
+    # Verify output is a proper MIME multipart message
+    assert "Subject: cwatch Report: 1 change(s) detected" in captured.out
+    assert "From: cwatch@localhost" in captured.out
+    assert "To: admin@localhost" in captured.out
+    assert "Content-Type: multipart/alternative" in captured.out
+    assert "Content-Type: text/plain" in captured.out
+    assert "Content-Type: text/html" in captured.out
+    assert "8.8.8.8" in captured.out

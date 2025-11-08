@@ -11,6 +11,7 @@ from cwatch.cw import main
 def test_config_file_not_found(monkeypatch, tmp_path):
     """Test that missing config file raises appropriate error."""
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["cwatch"])
 
     with pytest.raises(SystemExit) as exc_info:
         main()
@@ -22,6 +23,7 @@ def test_config_file_not_found(monkeypatch, tmp_path):
 def test_config_invalid_toml(monkeypatch, tmp_path):
     """Test that invalid TOML raises appropriate error."""
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["cwatch"])
 
     # Create invalid TOML
     config_file = tmp_path / "cwatch.toml"
