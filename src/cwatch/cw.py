@@ -465,11 +465,8 @@ def get_targets(configuration, targets) -> list:  # noqa: PLR0912
                 targets.append(ip)
     return targets
 
-def main() -> None:  # noqa: PLR0912
-    """Main function with comprehensive error handling."""
-    targets: list[str] = []
-    changes: bool = False
-
+def main() -> None:
+    """Main function with two-phase architecture."""
     # Load configuration with error handling
     try:
         with open(file="cwatch.toml", mode="rb") as file:
@@ -485,52 +482,39 @@ def main() -> None:  # noqa: PLR0912
         print(f"Error loading configuration: {err}")
         sys.exit(1)
 
-    if conf["cwatch"]["report"]:
-        report_header(configuration=conf)
-
     # Setup database if needed
     if not Path(conf["cwatch"]["DB_FILE"]).is_file():
         if not setup_database(configuration=conf):
             print("Error: Failed to setup database. Exiting.")
             sys.exit(1)
 
-    # Create list with domains and their IP addresses
-    get_targets(configuration=conf, targets=targets)
+    # Phase 1: Data Collection
+    from cwatch.collector import DataCollector  # noqa: PLC0415
 
-    if not targets:
+    collector = DataCollector(conf)
+    collected_data = collector.collect_all()
+
+    if collected_data.total_targets == 0:
         print("Warning: No valid targets found. Exiting.")
         sys.exit(0)
 
-    # Check for changes
-    if conf["cwatch"]["report"]:
-        print(f"Will check {len(targets)} hosts.")
-    item: str
-    for item in targets:
-        if conf["cwatch"]["report"] and not conf["cwatch"]["quiet"]:
-            print(f"Checking for changes for: {item}")
+    # Phase 2: Reporting
+    from cwatch.reporters import get_reporter  # noqa: PLC0415
 
-        request_id: dict | None = submit_request(configuration=conf, name=item)
-        if not request_id or request_id == {}:
-            print(f"Error: Failed to submit request for {item}. Skipping.")
-            continue
+    report_format = conf["cwatch"].get("output_format", "text")
+    reporter = get_reporter(report_format, conf)
+    report = reporter.generate(collected_data)
 
-        results_json: dict = get_response(configuration=conf, link=request_id["link"])
-        if not results_json or results_json == {}:
-            print(f"Error: Failed to get response for {item}. Skipping.")
-            continue
+    # Output report
+    output_destination = conf["cwatch"].get("output_file")
+    if output_destination:
+        with open(output_destination, "w") as f:
+            f.write(report)
+    else:
+        print(report)
 
-        if not save_json_data(configuration=conf, item=item, json_data=results_json):
-            print(f"Error: Failed to save data for {item}. Skipping change detection.")
-            continue
-
-        if detect_changes(configuration=conf, item=item):
-            changes = True
-
-    if conf["cwatch"]["report"] and conf["cwatch"]["quiet"] and not changes:
-        print("")
-        print("No changes to report.")
-    if conf["cwatch"]["report"]:
-        report_footer(configuration=conf)
+    # Exit code based on results
+    sys.exit(0 if collected_data.successful > 0 else 1)
 
 
 # Call main if used as a program.
