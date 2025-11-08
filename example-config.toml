@@ -45,3 +45,18 @@ report = true
 simple = false
 verbose = false
 DB_FILE = "cwatch.db"
+output_format = "text"  # Options: text, json, html
+# output_file = "report.html"  # Optional: write to file instead of stdout
+
+# Optional email configuration
+[email]
+enabled = false  # Set to true to enable email sending
+only_on_changes = true  # Only send email when changes are detected
+from = "cwatch@example.com"
+to = ["admin@example.com"]
+subject = "cwatch Report"  # Use {changes} placeholder for count
+smtp_host = "smtp.example.com"
+smtp_port = 587
+smtp_user = "cwatch@example.com"
+smtp_password = "your-password"
+use_tls = true

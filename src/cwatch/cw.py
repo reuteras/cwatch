@@ -505,13 +505,22 @@ def main() -> None:
     reporter = get_reporter(report_format, conf)
     report = reporter.generate(collected_data)
 
-    # Output report
+    # Output report to stdout/file
     output_destination = conf["cwatch"].get("output_file")
     if output_destination:
         with open(output_destination, "w") as f:
             f.write(report)
     else:
         print(report)
+
+    # Send email if configured
+    if conf.get("email", {}).get("enabled", False):
+        from cwatch.email_sender import send_email_report  # noqa: PLC0415
+
+        if send_email_report(conf, collected_data):
+            print("Email sent successfully.")
+        else:
+            print("Email not sent (no changes or error occurred).")
 
     # Exit code based on results
     sys.exit(0 if collected_data.successful > 0 else 1)

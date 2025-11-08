@@ -6,7 +6,7 @@ import pytest
 
 from cwatch.collector import DataCollector
 from cwatch.data_structures import CollectedData, TargetResult
-from cwatch.reporters import JsonReporter, TextReporter, get_reporter
+from cwatch.reporters import HtmlReporter, JsonReporter, TextReporter, get_reporter
 
 
 @pytest.mark.integration
@@ -242,3 +242,203 @@ def test_quiet_mode_filtering(sample_config):
     # Should only show significant changes
     assert "1.1.1.1" in report
     assert "Changes detected for 1.1.1.1" in report
+
+
+@pytest.mark.integration
+def test_html_reporter_integration(sample_config):
+    """Test HtmlReporter generates valid HTML."""
+    target1 = TargetResult(
+        target="8.8.8.8",
+        success=True,
+        timestamp=datetime.now(),
+        response={"test": "data"},
+        changes={"abuseipdb": {"reports": 5, "risk_score": 75}},
+        errors=[],
+    )
+
+    collected_data = CollectedData(
+        targets=[target1],
+        configuration=sample_config,
+        collection_start=datetime.now(),
+        collection_end=datetime.now(),
+        total_targets=1,
+        successful=1,
+        failed=0,
+    )
+
+    reporter = HtmlReporter(sample_config)
+    report = reporter.generate(collected_data)
+
+    # Verify HTML structure
+    assert isinstance(report, str)
+    assert "<!DOCTYPE html>" in report
+    assert "<html>" in report
+    assert "</html>" in report
+    assert "8.8.8.8" in report
+    assert "abuseipdb" in report
+    assert "<details>" in report  # Expandable sections
+    assert "<summary>" in report
+
+
+@pytest.mark.integration
+def test_html_reporter_with_links(sample_config):
+    """Test HtmlReporter includes clickable links."""
+    target1 = TargetResult(
+        target="1.1.1.1",
+        success=True,
+        timestamp=datetime.now(),
+        response={"test": "data"},
+        changes={"shodan": {"link": "https://www.shodan.io/host/1.1.1.1"}},
+        errors=[],
+    )
+
+    collected_data = CollectedData(
+        targets=[target1],
+        configuration=sample_config,
+        collection_start=datetime.now(),
+        collection_end=datetime.now(),
+        total_targets=1,
+        successful=1,
+        failed=0,
+    )
+
+    reporter = HtmlReporter(sample_config)
+    report = reporter.generate(collected_data)
+
+    # Verify links are present
+    assert '<a href=' in report
+    assert 'shodan.io' in report
+    assert 'target="_blank"' in report
+
+
+@pytest.mark.integration
+def test_html_reporter_with_errors(sample_config):
+    """Test HtmlReporter handles errors properly."""
+    target1 = TargetResult(
+        target="8.8.8.8",
+        success=False,
+        timestamp=datetime.now(),
+        response=None,
+        changes=None,
+        errors=["Connection failed", "Timeout"],
+    )
+
+    collected_data = CollectedData(
+        targets=[target1],
+        configuration=sample_config,
+        collection_start=datetime.now(),
+        collection_end=datetime.now(),
+        total_targets=1,
+        successful=0,
+        failed=1,
+    )
+
+    reporter = HtmlReporter(sample_config)
+    report = reporter.generate(collected_data)
+
+    # Verify error section exists
+    assert "Errors" in report or "❌" in report
+    assert "8.8.8.8" in report
+    assert "Connection failed" in report
+
+
+@pytest.mark.integration
+def test_get_reporter_html(sample_config):
+    """Test factory returns HtmlReporter."""
+    reporter = get_reporter("html", sample_config)
+    assert isinstance(reporter, HtmlReporter)
+
+
+@pytest.mark.integration
+def test_email_sending_disabled(sample_config):
+    """Test email sending when disabled."""
+    from cwatch.email_sender import send_email_report  # noqa: PLC0415
+
+    # Email disabled
+    sample_config["email"] = {"enabled": False}
+
+    collected_data = CollectedData(
+        targets=[],
+        configuration=sample_config,
+        collection_start=datetime.now(),
+        collection_end=datetime.now(),
+        total_targets=0,
+        successful=0,
+        failed=0,
+    )
+
+    result = send_email_report(sample_config, collected_data)
+    assert result is False
+
+
+@pytest.mark.integration
+def test_email_only_on_changes_no_changes(sample_config):
+    """Test email not sent when no changes and only_on_changes=True."""
+    from cwatch.email_sender import send_email_report  # noqa: PLC0415
+
+    sample_config["email"] = {
+        "enabled": True,
+        "only_on_changes": True,
+        "from": "test@example.com",
+        "to": ["admin@example.com"],
+        "smtp_host": "localhost",
+    }
+
+    # No changes
+    target1 = TargetResult(
+        target="8.8.8.8",
+        success=True,
+        timestamp=datetime.now(),
+        response={},
+        changes=None,
+        errors=[],
+    )
+
+    collected_data = CollectedData(
+        targets=[target1],
+        configuration=sample_config,
+        collection_start=datetime.now(),
+        collection_end=datetime.now(),
+        total_targets=1,
+        successful=1,
+        failed=0,
+    )
+
+    result = send_email_report(sample_config, collected_data)
+    assert result is False
+
+
+@pytest.mark.integration
+def test_email_subject_generation(sample_config):
+    """Test email subject line generation."""
+    from cwatch.email_sender import _generate_subject  # noqa: PLC0415
+
+    target1 = TargetResult(
+        target="8.8.8.8",
+        success=True,
+        timestamp=datetime.now(),
+        response={},
+        changes={"abuseipdb": {"reports": 5}},
+        errors=[],
+    )
+
+    collected_data = CollectedData(
+        targets=[target1],
+        configuration=sample_config,
+        collection_start=datetime.now(),
+        collection_end=datetime.now(),
+        total_targets=1,
+        successful=1,
+        failed=0,
+    )
+
+    # Test default subject
+    email_config = {"subject": "cwatch Report"}
+    subject = _generate_subject(email_config, collected_data)
+    assert "1" in subject
+    assert "change" in subject.lower()
+
+    # Test with placeholder
+    email_config = {"subject": "Security Report: {changes} changes"}
+    subject = _generate_subject(email_config, collected_data)
+    assert "1 changes" in subject
