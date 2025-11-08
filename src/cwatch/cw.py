@@ -475,7 +475,7 @@ def main() -> None:
     parser.add_argument(
         "--email-stdout",
         action="store_true",
-        help="Output email report to stdout instead of sending via SMTP"
+        help="Output email-formatted report to stdout (useful for cron jobs)"
     )
     args = parser.parse_args()
 

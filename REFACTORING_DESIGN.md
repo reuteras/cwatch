@@ -68,7 +68,7 @@ Phase 2 (Reporting):
   1. Accept CollectedData
   2. Apply filters
   3. Generate report based on format
-  4. Output to destination (stdout, file, email, etc.)
+  4. Output to destination (stdout, file, etc.)
 ```
 
 ## Detailed Design
@@ -480,11 +480,10 @@ max_workers = 5
 
 1. **Parallel Data Collection**: Use asyncio or multiprocessing
 2. **Report Comparison**: Compare multiple reports over time
-3. **Email Reporter**: Send reports via email
-4. **Webhook Reporter**: POST results to webhook
-5. **Dashboard**: Real-time web dashboard
-6. **Report Templates**: Customizable templates for HTML reports
-7. **Change Alerting**: Integrate with alerting systems (Slack, PagerDuty, etc.)
+3. **Webhook Reporter**: POST results to webhook
+4. **Dashboard**: Real-time web dashboard
+5. **Report Templates**: Customizable templates for HTML reports
+6. **Change Alerting**: Integrate with alerting systems (Slack, PagerDuty, etc.)
 
 ## Testing Strategy
 
