@@ -1,4 +1,5 @@
 """cwatch is a tool to monitor cyberbro for changes for questions."""
+import argparse
 import functools
 import hashlib
 import importlib.metadata
@@ -467,6 +468,17 @@ def get_targets(configuration, targets) -> list:  # noqa: PLR0912
 
 def main() -> None:
     """Main function with two-phase architecture."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description="Monitor cyberbro for changes in IOCs"
+    )
+    parser.add_argument(
+        "--email-stdout",
+        action="store_true",
+        help="Output email report to stdout instead of sending via SMTP"
+    )
+    args = parser.parse_args()
+
     # Load configuration with error handling
     try:
         with open(file="cwatch.toml", mode="rb") as file:
@@ -513,14 +525,11 @@ def main() -> None:
     else:
         print(report)
 
-    # Send email if configured
-    if conf.get("email", {}).get("enabled", False):
-        from cwatch.email_sender import send_email_report  # noqa: PLC0415
+    # Handle email output
+    if args.email_stdout:
+        from cwatch.email_sender import output_email_to_stdout  # noqa: PLC0415
 
-        if send_email_report(conf, collected_data):
-            print("Email sent successfully.")
-        else:
-            print("Email not sent (no changes or error occurred).")
+        output_email_to_stdout(conf, collected_data)
 
     # Exit code based on results
     sys.exit(0 if collected_data.successful > 0 else 1)
