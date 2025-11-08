@@ -56,5 +56,10 @@ lint.ignore = [
 ]
 fix = true
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "PLR2004",  # Magic value used in comparison - OK in tests
+]
+
 [tool.ruff.lint.pydocstyle]
 convention="google"

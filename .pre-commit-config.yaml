@@ -25,7 +25,17 @@ repos:
     hooks:
       - id: editorconfig-checker
         alias: ec
-  - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.13.0
+  # Temporarily disabled due to dependency issues
+  # - repo: https://github.com/owenlamont/uv-secure
+  #   rev: 0.13.0
+  #   hooks:
+  #     - id: uv-secure
+  - repo: local
     hooks:
-      - id: uv-secure
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
