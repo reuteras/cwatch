@@ -1,11 +1,32 @@
+# ============================================================================
+# cwatch Configuration File
+# ============================================================================
+# This file controls how cwatch monitors IOCs (Indicators of Compromise)
+# and generates reports about changes detected by various security engines.
+
+# ----------------------------------------------------------------------------
+# IOCs Section
+# ----------------------------------------------------------------------------
 [iocs]
+# List of domains and IP addresses to monitor
+# - Domains will be resolved to their IPs automatically
+# - Private IPs are filtered out
+# - Both the domain and its public IPs will be checked
 domains = [
     "example.com",
     "example.net",
 ]
 
+# ----------------------------------------------------------------------------
+# Cyberbro API Configuration
+# ----------------------------------------------------------------------------
 [cyberbro]
+# Base URL of the Cyberbro API service
+# Used to submit queries and retrieve results
 url = "http://127.0.0.1:5000"
+
+# List of security engines to query through Cyberbro
+# Results from these engines will be collected and compared over time
 engines = [
     "abuseipdb",
     "abusix",
@@ -26,9 +47,20 @@ engines = [
     "virustotal",
 ]
 
+# ----------------------------------------------------------------------------
+# cwatch Behavior and Reporting
+# ----------------------------------------------------------------------------
 [cwatch]
+# Custom header text displayed at the top of reports
 header = "Report for example.com"
+
+# Custom footer text displayed at the bottom of reports (optional)
 footer = ""
+
+# Engines to completely ignore in change detection
+# - Changes from these engines won't be reported
+# - They won't appear in the report header
+# - Use "$delete" as a placeholder for removed entries
 ignore_engines = [
     "$delete",
     "reverse_dns",
@@ -37,14 +69,52 @@ ignore_engines = [
     "urlscan",
     "spur"
 ]
+
+# Ignore specific fields within engines
+# Format: [ "engine_name", "field_name" ]
+# Example: [ "abuseipdb", "link" ] ignores only the "link" field in abuseipdb
 ignore_engines_partly = [
     [ "abuseipdb", "link" ],
 ]
+
+# Enable quiet mode - filters out noise from reports
+# - Removes zero-risk items (e.g., abuseipdb with 0 reports and 0 risk score)
+# - Removes no-match results (e.g., threatfox with 0 count)
+# - Removes null changes (e.g., shodan with no link)
+# Recommended: true for production monitoring
 quiet = true
+
+# Enable full report mode with headers, footers, and detailed output
+# - When true: includes headers, footers, and "no changes" messages
+# - When false: only shows changes without formatting
+# Recommended: true for scheduled reports, false for quick checks
 report = true
+
+# Use simple diff mode without filtering logic
+# - When true: returns raw symmetric diff of all changes
+# - When false: applies ignore_engines and ignore_engines_partly filters
+# Recommended: false (use filtering)
 simple = false
+
+# Print verbose debug information about filtering
+# - Shows what was removed during the filtering process
+# - Useful for debugging configuration issues
+# Recommended: false (only enable for troubleshooting)
 verbose = false
+
+# SQLite database filename for storing historical data
+# - Used to track changes over time
+# - Will be created automatically if it doesn't exist
 DB_FILE = "cwatch.db"
-output_format = "text"  # Options: text, json, html
-# output_file = "report.html"  # Optional: write to file instead of stdout
-# For cron: use --email-stdout flag to output multipart MIME email
+
+# Output format for reports
+# Options: "text" (plain text), "json" (JSON), "html" (HTML with styling)
+output_format = "text"
+
+# Optional: Write output to a file instead of stdout
+# Uncomment and set to a filename to save reports to disk
+# output_file = "report.html"
+
+# For cron jobs: use --email-stdout flag to output multipart MIME email
+# This creates a proper email with both text and HTML versions
+# Example cron entry: 0 * * * * cd /path/to/cwatch && cwatch --email-stdout
