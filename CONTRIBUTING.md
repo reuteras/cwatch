@@ -10,7 +10,7 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/) t
 
 Each commit message should follow this format:
 
-```
+```text
 <type>[optional scope]: <description>
 
 [optional body]
@@ -38,7 +38,7 @@ The commit type must be one of the following:
 
 To trigger a MAJOR version bump, add `BREAKING CHANGE:` in the commit footer or add `!` after the type:
 
-```
+```text
 feat!: change API to use async/await
 
 BREAKING CHANGE: All synchronous methods have been removed
@@ -47,7 +47,7 @@ BREAKING CHANGE: All synchronous methods have been removed
 ### Examples
 
 **Adding a new feature:**
-```
+```text
 feat: add retry logic with exponential backoff
 
 Implements automatic retry for network operations with configurable
@@ -55,7 +55,7 @@ backoff delays to handle temporary failures gracefully.
 ```
 
 **Fixing a bug:**
-```
+```text
 fix: prevent crash when DNS lookup fails
 
 Previously, DNS lookup failures would call sys.exit() and crash
@@ -64,28 +64,28 @@ other targets.
 ```
 
 **Improving performance:**
-```
+```text
 perf: optimize database queries for change detection
 
 Use indexed queries to speed up change detection by 50%.
 ```
 
 **Documentation update:**
-```
+```text
 docs: add examples for cron configuration
 
 Add example crontab entries for common use cases.
 ```
 
 **Refactoring code:**
-```
+```text
 refactor: extract error handling into decorator
 
 Move retry logic into a reusable decorator to reduce code duplication.
 ```
 
 **Breaking change:**
-```
+```text
 feat!: change configuration file format to YAML
 
 BREAKING CHANGE: Configuration files must now use YAML format instead

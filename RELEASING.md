@@ -122,7 +122,7 @@ Before your first automated release, you need to configure PyPI publishing. Choo
 
 ### Option A: Trusted Publishing (Recommended)
 
-1. Go to https://pypi.org/manage/account/publishing/
+1. Go to [PyPI Account Publishing](https://pypi.org/manage/account/publishing/)
 2. Click "Add a new pending publisher"
 3. Fill in:
    - **PyPI Project Name**: `cwatch`
@@ -136,8 +136,8 @@ This is more secure and doesn't require storing secrets.
 
 ### Option B: API Token (Alternative)
 
-1. Create a token at https://pypi.org/manage/account/token/
-2. Go to https://github.com/reuteras/cwatch/settings/secrets/actions
+1. Create a token at [PyPI Account Token](https://pypi.org/manage/account/token/)
+2. Go to [GitHub Secrets Settings](https://github.com/reuteras/cwatch/settings/secrets/actions)
 3. Click "New repository secret"
 4. Name: `PYPI_API_TOKEN`
 5. Value: Your PyPI token (starts with `pypi-`)
@@ -159,7 +159,7 @@ Then update `.github/workflows/release-please.yml` to use the token:
 
 **Solutions**:
 - Wait a few minutes (the workflow may be running)
-- Check the Actions tab: https://github.com/reuteras/cwatch/actions
+- Check the [Actions tab](https://github.com/reuteras/cwatch/actions)
 - Ensure commits use conventional commit format
 - Check commits have `feat:` or `fix:` type (not just `chore:` or `docs:`)
 

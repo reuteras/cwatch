@@ -17,7 +17,7 @@ This document outlines the design for refactoring cwatch into a two-phase archit
 
 ### Current Flow
 
-```
+```text
 For each target:
   1. Submit API request
   2. Get response
@@ -53,7 +53,7 @@ Output: Formatted report (text, JSON, HTML, etc.)
 
 ### New Flow
 
-```
+```text
 Phase 1 (Data Collection):
   For each target:
     1. Submit API request

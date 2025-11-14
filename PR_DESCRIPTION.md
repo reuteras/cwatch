@@ -59,7 +59,7 @@ Version bumps are determined by commit types:
 You need to configure PyPI publishing (one-time setup):
 
 **Option A: Trusted Publishing (Recommended)**
-1. Go to https://pypi.org/manage/account/publishing/
+1. Go to [PyPI Account Publishing](https://pypi.org/manage/account/publishing/)
 2. Add pending publisher:
    - Project: `cwatch`
    - Owner: `reuteras`
@@ -84,7 +84,7 @@ All configuration files have been validated:
 - ✅ JSON configuration validated
 - ✅ Follows Release Please best practices
 
-## Documentation
+## Documentation Files
 
 Complete documentation is available in:
 - `CONTRIBUTING.md` - How to write conventional commits
