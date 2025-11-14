@@ -6,20 +6,26 @@ import httpcore
 import httpx
 import pytest
 
-from cwatch.cw import get_response, retry_with_backoff, submit_request
+from cwatch.cw import (
+    check_analysis_complete,
+    get_response,
+    get_results,
+    retry_with_backoff,
+    submit_request,
+)
 
 
 @pytest.mark.unit
 def test_submit_request_success(sample_config, mocker):
     """Test successful API request submission."""
     mock_response = Mock()
-    mock_response.text = json.dumps({"link": "/result/123"})
+    mock_response.text = json.dumps({"analysis_id": "abc123xyz"})
 
     mocker.patch("httpx.post", return_value=mock_response)
 
     result = submit_request(sample_config, "example.com")
 
-    assert result == {"link": "/result/123"}
+    assert result == "abc123xyz"
 
 
 @pytest.mark.unit
@@ -64,71 +70,153 @@ def test_submit_request_invalid_json(sample_config, mocker, capsys):
     result = submit_request(sample_config, "example.com")
     captured = capsys.readouterr()
 
-    assert result == {}
+    assert result == ""
     assert "Error parsing response" in captured.out
 
 
 @pytest.mark.unit
 def test_get_response_success(sample_config, mocker):
-    """Test successful response retrieval."""
-    mock_response = Mock()
-    mock_response.text = json.dumps([{"result": "data"}])
+    """Test successful response retrieval with completion check."""
+    # Mock completion check to return True
+    completion_response = Mock()
+    completion_response.text = json.dumps({"complete": True})
 
-    mocker.patch("httpx.get", return_value=mock_response)
+    # Mock results retrieval
+    results_response = Mock()
+    results_response.text = json.dumps([{"result": "data"}])
 
-    result = get_response(sample_config, "/result/123")
+    mocker.patch(
+        "httpx.get",
+        side_effect=[completion_response, results_response]
+    )
+    mocker.patch("time.sleep")  # Speed up test
+
+    result = get_response(sample_config, "abc123xyz")
 
     assert result == [{"result": "data"}]
 
 
 @pytest.mark.unit
 def test_get_response_polling(sample_config, mocker):
-    """Test response retrieval with polling."""
-    # First two calls return empty, third returns data
+    """Test response retrieval with polling for completion."""
+    # First two completion checks return False, third returns True, then results
     mock_responses = [
-        Mock(text="[]\n"),
-        Mock(text="[]\n"),
-        Mock(text=json.dumps([{"result": "data"}])),
+        Mock(text=json.dumps({"complete": False})),  # First check
+        Mock(text=json.dumps({"complete": False})),  # Second check
+        Mock(text=json.dumps({"complete": True})),   # Third check
+        Mock(text=json.dumps([{"result": "data"}])), # Results
     ]
 
     mock_get = mocker.patch("httpx.get", side_effect=mock_responses)
     mocker.patch("time.sleep")  # Speed up test
 
-    result = get_response(sample_config, "/result/123")
+    result = get_response(sample_config, "abc123xyz")
 
     assert result == [{"result": "data"}]
-    assert mock_get.call_count == 3
+    assert mock_get.call_count == 4
 
 
 @pytest.mark.unit
 def test_get_response_connection_error(sample_config, mocker, capsys):
-    """Test response retrieval with connection errors."""
+    """Test response retrieval with connection errors during polling."""
     mocker.patch(
         "httpx.get",
         side_effect=httpcore.ConnectError("Connection failed")
     )
     mocker.patch("time.sleep")
 
-    result = get_response(sample_config, "/result/123")
+    result = get_response(sample_config, "abc123xyz")
     captured = capsys.readouterr()
 
     assert result == {}
-    assert "Failed to connect" in captured.out
+    assert "Failed to check analysis completion" in captured.out or "Failed to" in captured.out
 
 
 @pytest.mark.unit
 def test_get_response_invalid_json(sample_config, mocker, capsys):
-    """Test response retrieval with invalid JSON."""
+    """Test response retrieval with invalid JSON in completion check."""
     mock_response = Mock()
     mock_response.text = "Invalid JSON{"
 
     mocker.patch("httpx.get", return_value=mock_response)
+    mocker.patch("time.sleep")
 
-    result = get_response(sample_config, "/result/123")
+    result = get_response(sample_config, "abc123xyz")
     captured = capsys.readouterr()
 
     assert result == {}
-    assert "Error parsing response" in captured.out
+    assert "Error parsing" in captured.out
+
+
+@pytest.mark.unit
+def test_check_analysis_complete_true(sample_config, mocker):
+    """Test checking if analysis is complete (true)."""
+    mock_response = Mock()
+    mock_response.text = json.dumps({"complete": True})
+
+    mocker.patch("httpx.get", return_value=mock_response)
+
+    result = check_analysis_complete(sample_config, "abc123xyz")
+
+    assert result is True
+
+
+@pytest.mark.unit
+def test_check_analysis_complete_false(sample_config, mocker):
+    """Test checking if analysis is complete (false)."""
+    mock_response = Mock()
+    mock_response.text = json.dumps({"complete": False})
+
+    mocker.patch("httpx.get", return_value=mock_response)
+
+    result = check_analysis_complete(sample_config, "abc123xyz")
+
+    assert result is False
+
+
+@pytest.mark.unit
+def test_check_analysis_complete_connection_error(sample_config, mocker, capsys):
+    """Test checking analysis completion with connection error."""
+    mocker.patch(
+        "httpx.get",
+        side_effect=httpcore.ConnectError("Connection failed")
+    )
+    mocker.patch("time.sleep")
+
+    result = check_analysis_complete(sample_config, "abc123xyz")
+    captured = capsys.readouterr()
+
+    assert result is False
+    assert "Failed to check analysis completion" in captured.out
+
+
+@pytest.mark.unit
+def test_get_results_success(sample_config, mocker):
+    """Test successful results retrieval."""
+    mock_response = Mock()
+    mock_response.text = json.dumps([{"engine": "virustotal", "data": "result"}])
+
+    mocker.patch("httpx.get", return_value=mock_response)
+
+    result = get_results(sample_config, "abc123xyz")
+
+    assert result == [{"engine": "virustotal", "data": "result"}]
+
+
+@pytest.mark.unit
+def test_get_results_connection_error(sample_config, mocker, capsys):
+    """Test results retrieval with connection error."""
+    mocker.patch(
+        "httpx.get",
+        side_effect=httpcore.ConnectError("Connection failed")
+    )
+    mocker.patch("time.sleep")
+
+    result = get_results(sample_config, "abc123xyz")
+    captured = capsys.readouterr()
+
+    assert result == {}
+    assert "Failed to get results" in captured.out
 
 
 @pytest.mark.unit

@@ -71,77 +71,143 @@ def retry_with_backoff(
 
 
 @retry_with_backoff()
-def submit_request(configuration, name) -> dict:
-    """Submit question to Cyberbro with retry logic.
+def submit_request(configuration, name) -> str:
+    """Submit question to Cyberbro and return analysis_id with retry logic.
 
     Args:
         configuration: Configuration dictionary
         name: Target name to query
 
     Returns:
-        Response dictionary or empty dict on failure
+        Analysis ID string or empty string on failure
     """
     data: dict[str, dict] = {"text": name, "engines": configuration["cyberbro"]["engines"]}
     r: httpx.Response = httpx.post(
-        url=configuration["cyberbro"]["url"] + "/analyze",
+        url=configuration["cyberbro"]["url"] + "/api/analyze",
         json=data,
         timeout=HTTP_TIMEOUT
     )
     try:
-        return json.loads(r.text)
+        response = json.loads(r.text)
+        analysis_id = response.get("analysis_id")
+        if analysis_id:
+            return analysis_id
+        print(f"No analysis_id in response for {name}: {r.text}")
+        return ""
     except Exception as err:
         print(f"Error parsing response for {name}: {r.text}. Error was {err}")
-        return {}
+        return ""
 
 
-def get_response(configuration, link) -> dict:
-    """Get the response from Cyberbro with polling and retry logic.
+def check_analysis_complete(configuration, analysis_id) -> bool:
+    """Check if analysis is complete.
 
     Args:
         configuration: Configuration dictionary
-        link: API endpoint link to poll
+        analysis_id: Analysis ID to check
 
     Returns:
-        Response dictionary or empty dict on failure
+        True if complete, False otherwise
     """
-    done: bool = False
-    r: httpx.Response | None = None
     connect_error_count: int = 0
     delay: float = INITIAL_RETRY_DELAY
 
-    while not done and connect_error_count <= MAX_RETRIES:
+    while connect_error_count <= MAX_RETRIES:
         try:
-            r = httpx.get(
-                url=configuration["cyberbro"]["url"] + link,
+            r: httpx.Response = httpx.get(
+                url=configuration["cyberbro"]["url"] + f"/api/is_analysis_complete/{analysis_id}",
                 timeout=HTTP_TIMEOUT
             )
             # Reset error count on successful connection
             connect_error_count = 0
-            delay = INITIAL_RETRY_DELAY
 
-            if r.text != "[]\n":
-                done = True
-            else:
-                time.sleep(1)
+            try:
+                response = json.loads(r.text)
+                return response.get("complete", False)
+            except Exception as err:
+                print(f"Error parsing completion response for {analysis_id}: {r.text}. Error was {err}")
+                return False
+
         except (HTTPException, httpcore.ConnectError, httpx.TimeoutException, httpx.ConnectError) as err:
             connect_error_count += 1
             if connect_error_count > MAX_RETRIES:
-                print(f"Failed to connect to server after {MAX_RETRIES} retries: {err}")
+                print(f"Failed to check analysis completion after {MAX_RETRIES} retries: {err}")
+                return False
+            print(f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...")
+            time.sleep(delay)
+            delay = min(delay * 2, MAX_RETRY_DELAY)
+            continue
+
+    return False
+
+
+def get_results(configuration, analysis_id) -> dict:
+    """Get analysis results from Cyberbro.
+
+    Args:
+        configuration: Configuration dictionary
+        analysis_id: Analysis ID to get results for
+
+    Returns:
+        Results dictionary or empty dict on failure
+    """
+    connect_error_count: int = 0
+    delay: float = INITIAL_RETRY_DELAY
+
+    while connect_error_count <= MAX_RETRIES:
+        try:
+            r: httpx.Response = httpx.get(
+                url=configuration["cyberbro"]["url"] + f"/api/results/{analysis_id}",
+                timeout=HTTP_TIMEOUT
+            )
+            # Reset error count on successful connection
+            connect_error_count = 0
+
+            try:
+                return json.loads(r.text)
+            except Exception as err:
+                print(f"Error parsing results for {analysis_id}: {r.text}. Error was {err}")
+                return {}
+
+        except (HTTPException, httpcore.ConnectError, httpx.TimeoutException, httpx.ConnectError) as err:
+            connect_error_count += 1
+            if connect_error_count > MAX_RETRIES:
+                print(f"Failed to get results after {MAX_RETRIES} retries: {err}")
                 return {}
             print(f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...")
             time.sleep(delay)
             delay = min(delay * 2, MAX_RETRY_DELAY)
             continue
 
-    if r is None:
-        print("Failed to get response from server.")
-        return {}
+    return {}
 
-    try:
-        return json.loads(r.text)
-    except Exception as err:
-        print(f"Error parsing response: {r.text}. Error was {err}")
-        return {}
+
+def get_response(configuration, analysis_id) -> dict:
+    """Poll for analysis completion and get results from Cyberbro.
+
+    Args:
+        configuration: Configuration dictionary
+        analysis_id: Analysis ID to poll
+
+    Returns:
+        Response dictionary or empty dict on failure
+    """
+    max_wait_time: int = 3600  # 1 hour maximum wait time
+    elapsed_time: int = 0
+    poll_interval: int = 5  # Start with 5 second polls
+
+    while elapsed_time < max_wait_time:
+        if check_analysis_complete(configuration, analysis_id):
+            return get_results(configuration, analysis_id)
+
+        print(f"Analysis {analysis_id} not complete yet. Waiting {poll_interval}s before next check...")
+        time.sleep(poll_interval)
+        elapsed_time += poll_interval
+        # Gradually increase poll interval to reduce server load
+        poll_interval = min(poll_interval + 5, 60)
+
+    print(f"Analysis {analysis_id} did not complete within {max_wait_time} seconds")
+    return {}
 
 
 def setup_database(configuration) -> bool:

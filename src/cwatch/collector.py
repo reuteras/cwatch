@@ -74,9 +74,9 @@ class DataCollector:
         errors = []
 
         try:
-            # Submit request
-            request_id = submit_request(self.config, target)
-            if not request_id:
+            # Submit request and get analysis_id
+            analysis_id = submit_request(self.config, target)
+            if not analysis_id:
                 return TargetResult(
                     target=target,
                     success=False,
@@ -86,8 +86,8 @@ class DataCollector:
                     errors=["Failed to submit request"],
                 )
 
-            # Get response
-            response = get_response(self.config, request_id["link"])
+            # Poll for completion and get response
+            response = get_response(self.config, analysis_id)
             if not response:
                 return TargetResult(
                     target=target,
