@@ -54,15 +54,15 @@ def retry_with_backoff(
                     return func(*args, **kwargs)
                 except exceptions as err:
                     if attempt == max_retries:
-                        print(f"Failed after {max_retries} retries in {func.__name__}: {err}")
+                        print(f"Failed after {max_retries} retries in {func.__name__}: {err}", file=sys.stderr)
                         return None
 
-                    print(f"Attempt {attempt + 1}/{max_retries + 1} failed in {func.__name__}: {err}. Retrying in {delay:.1f}s...")
+                    print(f"Attempt {attempt + 1}/{max_retries + 1} failed in {func.__name__}: {err}. Retrying in {delay:.1f}s...", file=sys.stderr)
                     time.sleep(delay)
                     delay = min(delay * 2, max_delay)  # Exponential backoff with cap
                 except Exception as err:
                     # For unexpected exceptions, don't retry
-                    print(f"Unexpected error in {func.__name__}: {err}")
+                    print(f"Unexpected error in {func.__name__}: {err}", file=sys.stderr)
                     return None
 
             return None
@@ -92,10 +92,10 @@ def submit_request(configuration, name) -> str:
         analysis_id = response.get("analysis_id")
         if analysis_id:
             return analysis_id
-        print(f"No analysis_id in response for {name}: {r.text}")
+        print(f"No analysis_id in response for {name}: {r.text}", file=sys.stderr)
         return ""
     except Exception as err:
-        print(f"Error parsing response for {name}: {r.text}. Error was {err}")
+        print(f"Error parsing response for {name}: {r.text}. Error was {err}", file=sys.stderr)
         return ""
 
 
@@ -125,15 +125,15 @@ def check_analysis_complete(configuration, analysis_id) -> bool:
                 response = json.loads(r.text)
                 return response.get("complete", False)
             except Exception as err:
-                print(f"Error parsing completion response for {analysis_id}: {r.text}. Error was {err}")
+                print(f"Error parsing completion response for {analysis_id}: {r.text}. Error was {err}", file=sys.stderr)
                 return False
 
         except (HTTPException, httpcore.ConnectError, httpx.TimeoutException, httpx.ConnectError) as err:
             connect_error_count += 1
             if connect_error_count > MAX_RETRIES:
-                print(f"Failed to check analysis completion after {MAX_RETRIES} retries: {err}")
+                print(f"Failed to check analysis completion after {MAX_RETRIES} retries: {err}", file=sys.stderr)
                 return False
-            print(f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...")
+            print(f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...", file=sys.stderr)
             time.sleep(delay)
             delay = min(delay * 2, MAX_RETRY_DELAY)
             continue
@@ -166,15 +166,15 @@ def get_results(configuration, analysis_id) -> dict:
             try:
                 return json.loads(r.text)
             except Exception as err:
-                print(f"Error parsing results for {analysis_id}: {r.text}. Error was {err}")
+                print(f"Error parsing results for {analysis_id}: {r.text}. Error was {err}", file=sys.stderr)
                 return {}
 
         except (HTTPException, httpcore.ConnectError, httpx.TimeoutException, httpx.ConnectError) as err:
             connect_error_count += 1
             if connect_error_count > MAX_RETRIES:
-                print(f"Failed to get results after {MAX_RETRIES} retries: {err}")
+                print(f"Failed to get results after {MAX_RETRIES} retries: {err}", file=sys.stderr)
                 return {}
-            print(f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...")
+            print(f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...", file=sys.stderr)
             time.sleep(delay)
             delay = min(delay * 2, MAX_RETRY_DELAY)
             continue
@@ -200,13 +200,13 @@ def get_response(configuration, analysis_id) -> dict:
         if check_analysis_complete(configuration, analysis_id):
             return get_results(configuration, analysis_id)
 
-        print(f"Analysis {analysis_id} not complete yet. Waiting {poll_interval}s before next check...")
+        print(f"Analysis {analysis_id} not complete yet. Waiting {poll_interval}s before next check...", file=sys.stderr)
         time.sleep(poll_interval)
         elapsed_time += poll_interval
         # Gradually increase poll interval to reduce server load
         poll_interval = min(poll_interval + 5, 60)
 
-    print(f"Analysis {analysis_id} did not complete within {max_wait_time} seconds")
+    print(f"Analysis {analysis_id} did not complete within {max_wait_time} seconds", file=sys.stderr)
     return {}
 
 

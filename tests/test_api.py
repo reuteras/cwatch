@@ -40,8 +40,8 @@ def test_submit_request_network_error(sample_config, mocker, capsys):
     captured = capsys.readouterr()
 
     assert result is None
-    assert "Failed after" in captured.out
-    assert "retries" in captured.out
+    assert "Failed after" in captured.err
+    assert "retries" in captured.err
 
 
 @pytest.mark.unit
@@ -56,7 +56,7 @@ def test_submit_request_timeout(sample_config, mocker, capsys):
     captured = capsys.readouterr()
 
     assert result is None
-    assert "Failed after" in captured.out
+    assert "Failed after" in captured.err
 
 
 @pytest.mark.unit
@@ -71,7 +71,7 @@ def test_submit_request_invalid_json(sample_config, mocker, capsys):
     captured = capsys.readouterr()
 
     assert result == ""
-    assert "Error parsing response" in captured.out
+    assert "Error parsing response" in captured.err
 
 
 @pytest.mark.unit
@@ -129,7 +129,7 @@ def test_get_response_connection_error(sample_config, mocker, capsys):
     captured = capsys.readouterr()
 
     assert result == {}
-    assert "Failed to check analysis completion" in captured.out or "Failed to" in captured.out
+    assert "Failed to check analysis completion" in captured.err or "Failed to" in captured.err
 
 
 @pytest.mark.unit
@@ -145,7 +145,7 @@ def test_get_response_invalid_json(sample_config, mocker, capsys):
     captured = capsys.readouterr()
 
     assert result == {}
-    assert "Error parsing" in captured.out
+    assert "Error parsing" in captured.err
 
 
 @pytest.mark.unit
@@ -187,7 +187,7 @@ def test_check_analysis_complete_connection_error(sample_config, mocker, capsys)
     captured = capsys.readouterr()
 
     assert result is False
-    assert "Failed to check analysis completion" in captured.out
+    assert "Failed to check analysis completion" in captured.err
 
 
 @pytest.mark.unit
@@ -216,7 +216,7 @@ def test_get_results_connection_error(sample_config, mocker, capsys):
     captured = capsys.readouterr()
 
     assert result == {}
-    assert "Failed to get results" in captured.out
+    assert "Failed to get results" in captured.err
 
 
 @pytest.mark.unit
@@ -267,7 +267,7 @@ def test_retry_decorator_max_retries(mocker, capsys):
     captured = capsys.readouterr()
 
     assert result is None
-    assert "Failed after 2 retries" in captured.out
+    assert "Failed after 2 retries" in captured.err
 
 
 @pytest.mark.unit
@@ -281,4 +281,4 @@ def test_retry_decorator_unexpected_error(capsys):
     captured = capsys.readouterr()
 
     assert result is None
-    assert "Unexpected error" in captured.out
+    assert "Unexpected error" in captured.err
