@@ -115,6 +115,11 @@ output_format = "text"
 # Uncomment and set to a filename to save reports to disk
 # output_file = "report.html"
 
+# Email addresses for email output (used with --email-stdout flag)
+# These addresses will be set in the From and To headers of the MIME message
+email_from = "cwatch@example.com"
+email_to = "admin@example.com"
+
 # For cron jobs: use --email-stdout flag to output multipart MIME email
 # This creates a proper email with both text and HTML versions
 # Example cron entry: 0 * * * * cd /path/to/cwatch && cwatch --email-stdout
