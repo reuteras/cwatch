@@ -30,6 +30,8 @@ def sample_config(temp_db):
             "footer": "End of Report",
             "ignore_engines": ["urlhaus"],
             "ignore_engines_partly": [["virustotal", "last_analysis_date"]],
+            "email_from": "cwatch@localhost",
+            "email_to": "admin@localhost",
         },
         "cyberbro": {
             "url": "http://localhost:8000",

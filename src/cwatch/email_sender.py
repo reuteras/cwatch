@@ -34,8 +34,8 @@ def output_email_to_stdout(configuration: dict, collected_data: CollectedData) -
         # Create multipart message
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = "cwatch@localhost"
-        msg["To"] = "admin@localhost"
+        msg["From"] = configuration["cwatch"].get("email_from", "cwatch@localhost")
+        msg["To"] = configuration["cwatch"].get("email_to", "admin@localhost")
 
         # Attach both versions (plain text first, then HTML)
         # Email clients will prefer the last alternative (HTML)
