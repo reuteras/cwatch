@@ -292,12 +292,12 @@ def handle_abuseipdb(change) -> dict:
     """Remove change from abuseipdb if no relevant changes."""
     report = True
     if isinstance(change["abuseipdb"], list) and len(change["abuseipdb"]) == 2: # noqa: PLR2004
-        if "reports" in change["abuseipdb"][1] and "risk_score" in change["abuseipdb"][1]:
+        if isinstance(change["abuseipdb"][1], dict) and "reports" in change["abuseipdb"][1] and "risk_score" in change["abuseipdb"][1]:
             if change["abuseipdb"][1]["reports"] == 0 and change["abuseipdb"][1]["risk_score"] == 0:
                 report = False
         else:
             report = False
-    if "reports" in change["abuseipdb"] and "risk_score" in change["abuseipdb"]:
+    elif isinstance(change["abuseipdb"], dict) and "reports" in change["abuseipdb"] and "risk_score" in change["abuseipdb"]:
         if change["abuseipdb"]["reports"] == 0 and change["abuseipdb"]["risk_score"] == 0:
             report = False
     if not report:
@@ -307,7 +307,7 @@ def handle_abuseipdb(change) -> dict:
 
 def handle_shodan(change) -> dict:
     """Remove change from shodan if change is to null."""
-    if "link" not in change["shodan"]:
+    if not isinstance(change["shodan"], dict) or "link" not in change["shodan"]:
         change.pop("shodan")
     return change
 
@@ -317,14 +317,16 @@ def handle_threatfox(change) -> dict:
     report = True
     try:
         if isinstance(change["threatfox"], list) and len(change["threatfox"]) == 2: # noqa: PLR2004
-            if "count" in change["threatfox"][1] and change["threatfox"][1]["count"] == 0 \
+            if isinstance(change["threatfox"][1], dict) and "count" in change["threatfox"][1] and change["threatfox"][1]["count"] == 0 \
                     and "malware_printable" in change["threatfox"][1] and change["threatfox"][1]["malware_printable"] == []:
                 report = False
             elif change["threatfox"][1] is None:
                 report = False
-        if change["threatfox"] is None or ("count" in change["threatfox"]):
+        elif isinstance(change["threatfox"], dict) and "count" in change["threatfox"]:
             if change["threatfox"]["count"] == 0 and change["threatfox"]["malware_printable"] == []:
                 report = False
+        elif change["threatfox"] is None:
+            report = False
     except (TypeError, KeyError, RuntimeError):
         # If the key is not present, we assume no matches
         report = False
@@ -339,12 +341,14 @@ def handle_virustotal(change) -> dict:
     if isinstance(change["virustotal"], list) and len(change["virustotal"]) == 2: # noqa: PLR2004
         if change["virustotal"][1] is None:
             report = False
-        elif "community_score" in change["virustotal"][1] and change["virustotal"][1]["community_score"] == 0 \
+        elif isinstance(change["virustotal"][1], dict) and "community_score" in change["virustotal"][1] and change["virustotal"][1]["community_score"] == 0 \
                 and "total_malicious" in change["virustotal"][1] and change["virustotal"][1]["total_malicious"] == 0:
             report = False
-    if change["virustotal"] is None or ("community_score" in change["virustotal"]):
+    elif isinstance(change["virustotal"], dict) and "community_score" in change["virustotal"]:
         if change["virustotal"]["community_score"] == 0 and change["virustotal"]["total_malicious"] == 0:
             report = False
+    elif change["virustotal"] is None:
+        report = False
     if not report:
         change.pop("virustotal")
     return change
