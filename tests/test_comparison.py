@@ -109,9 +109,6 @@ def test_compare_json_ignore_partly_with_other_changes(sample_config):
 
 
 @pytest.mark.unit
-@pytest.mark.xfail(
-    reason="Bug in compare_json: when simple=True, jsondiff returns dict but code tries json.loads() on it"
-)
 def test_compare_json_simple_mode(sample_config):
     """Test JSON comparison in simple mode."""
     sample_config["cwatch"]["simple"] = True
@@ -210,3 +207,49 @@ def test_compare_json_nested_changes(sample_config):
     result = compare_json(sample_config, old, new)
 
     assert "virustotal" in result
+
+
+@pytest.mark.unit
+def test_compare_json_structural_change_simple_mode(sample_config):
+    """Test JSON comparison when entire structure changes in simple mode."""
+    sample_config["cwatch"]["simple"] = True
+
+    old = {"abuseipdb": {"reports": 0}}
+    new = ["list", "instead", "of", "dict"]
+
+    result = compare_json(sample_config, old, new)
+
+    # When structure changes completely, should return empty dict
+    assert isinstance(result, dict)
+    assert result == {}
+
+
+@pytest.mark.unit
+def test_compare_json_structural_change_normal_mode(sample_config):
+    """Test JSON comparison when entire structure changes in normal mode."""
+    old = {"abuseipdb": {"reports": 0}}
+    new = ["list", "instead", "of", "dict"]
+
+    result = compare_json(sample_config, old, new)
+
+    # When structure changes completely, should return empty dict
+    assert isinstance(result, dict)
+    assert result == {}
+
+
+@pytest.mark.unit
+def test_compare_json_structural_change_verbose(sample_config, capsys):
+    """Test JSON comparison with structural change in verbose mode."""
+    sample_config["cwatch"]["simple"] = True
+    sample_config["cwatch"]["verbose"] = True
+
+    old = {"abuseipdb": {"reports": 0}}
+    new = ["list", "instead", "of", "dict"]
+
+    result = compare_json(sample_config, old, new)
+    captured = capsys.readouterr()
+
+    # Should return empty dict and print warning
+    assert isinstance(result, dict)
+    assert result == {}
+    assert "Complete structural change detected" in captured.out
