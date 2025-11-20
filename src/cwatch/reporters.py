@@ -43,6 +43,10 @@ class Reporter(ABC):
         Returns:
             Filtered changes dictionary
         """
+        # Defensive type check: ensure changes is a dict
+        if not isinstance(changes, dict):
+            return {}
+
         if not self.config["cwatch"]["quiet"]:
             return changes
 

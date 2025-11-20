@@ -425,26 +425,57 @@ def compare_json(configuration, old, new) -> dict:
     """Compare json objects."""
     simple: bool = configuration["cwatch"]["simple"]
     verbose: bool = configuration["cwatch"]["verbose"]
+
+    # Get the diff result
     if simple:
-        json_diff: str = cast(str, jsondiff.diff(old, new, syntax="symmetric"))
-        return json.loads(json_diff)
-    json_diff: str = cast(str, jsondiff.diff(old, new, syntax="symmetric", dump=True))
-    diff: dict = json.loads(json_diff)
+        diff_result = jsondiff.diff(old, new, syntax="symmetric")
+    else:
+        json_diff: str = cast(str, jsondiff.diff(old, new, syntax="symmetric", dump=True))
+        diff_result = json.loads(json_diff)
+
+    # Validate diff_result is a dict
+    if not isinstance(diff_result, dict):
+        if verbose and isinstance(diff_result, list):
+            print("Warning: Complete structural change detected, treating as no reportable changes")
+        return {}
+
+    # Apply filtering (only in non-simple mode)
+    if simple:
+        return diff_result
+
+    return _apply_diff_filters(configuration, diff_result)
+
+
+def _apply_diff_filters(configuration: dict, diff: dict) -> dict:
+    """Apply ignore filters to diff results.
+
+    Args:
+        configuration: Configuration dictionary
+        diff: Diff dictionary to filter
+
+    Returns:
+        Filtered diff dictionary
+    """
+    verbose: bool = configuration["cwatch"]["verbose"]
+
+    # Remove ignored engines
     for engine in configuration["cwatch"]["ignore_engines"]:
         if engine in diff:
             removed: dict = diff.pop(engine)
             if verbose:
                 print(f"Removed diff in {engine}: {removed}")
+
+    # Remove partially ignored engine fields
     for combo in configuration["cwatch"]["ignore_engines_partly"]:
         engine: str = combo[0]
         part: str = combo[1]
-        if engine in diff:
-            if part in diff[engine]:
-                removed = diff[engine].pop(part)
-                if verbose:
-                    print(f"Removed diff in {engine}->{part}: {removed}")
-            if diff[engine] == {}:
+        if engine in diff and part in diff[engine]:
+            removed = diff[engine].pop(part)
+            if verbose:
+                print(f"Removed diff in {engine}->{part}: {removed}")
+            if not diff[engine]:
                 diff.pop(engine)
+
     return diff
 
 
