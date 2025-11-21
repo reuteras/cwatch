@@ -697,7 +697,12 @@ def main() -> None:
     parser.add_argument(
         "--email-stdout",
         action="store_true",
-        help="Output email-formatted report to stdout (useful for cron jobs)",
+        help="Output plain text email to stdout (useful for cron jobs with simple MIME support)",
+    )
+    parser.add_argument(
+        "--email-stdout-html",
+        action="store_true",
+        help="Output HTML email to stdout (useful for cron jobs with simple MIME support)",
     )
     args = parser.parse_args()
 
@@ -741,9 +746,13 @@ def main() -> None:
 
     # Handle email output (for cron)
     if args.email_stdout:
-        from cwatch.email_sender import output_email_to_stdout  # noqa: PLC0415
+        from cwatch.email_sender import output_email_text_to_stdout  # noqa: PLC0415
 
-        output_email_to_stdout(conf, collected_data)
+        output_email_text_to_stdout(conf, collected_data)
+    elif args.email_stdout_html:
+        from cwatch.email_sender import output_email_html_to_stdout  # noqa: PLC0415
+
+        output_email_html_to_stdout(conf, collected_data)
     else:
         # Output report to stdout/file
         output_destination = conf["cwatch"].get("output_file")
