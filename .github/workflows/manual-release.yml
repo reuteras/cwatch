@@ -20,39 +20,46 @@ jobs:
     environment: pypi
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@1d96c772d19495a3b5c8eebd5c2cbf07bcccd908
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
         with:
           python-version: '3.11'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@bd47bffd8e9ea29bda42ffb202eadabecddf0e6b
         with:
           version: "latest"
 
       - name: Update version in pyproject.toml
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          sed -i 's/^version = .*/version = "${{ inputs.version }}"/' \
+          sed -i "s/^version = .*/version = \"$VERSION\"/" \
             pyproject.toml
           grep version pyproject.toml
 
       - name: Commit version bump
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml
-          git commit -m "chore: bump version to ${{ inputs.version }}"
+          git commit -m "chore: bump version to $VERSION"
           git push
 
       - name: Create git tag
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          git tag -a "v${{ inputs.version }}" \
-            -m "Release v${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
+          git tag -a "v$VERSION" \
+            -m "Release v$VERSION"
+          git push origin "v$VERSION"
 
       - name: Build package
         run: uv build
@@ -60,11 +67,12 @@ jobs:
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
         run: |
-          gh release create "v${{ inputs.version }}" \
-            --title "v${{ inputs.version }}" \
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
             --generate-notes \
             dist/*
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@81e7aff4e92d7eac42b907e61bea7efcf0eafc18
