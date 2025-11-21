@@ -20,10 +20,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@5a7eac68fb9809dea845d802897dc5c723910fa3
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -38,7 +40,7 @@ jobs:
         run: uv run pytest -v --cov --cov-report=term-missing --cov-report=html
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         if: matrix.python-version == '3.11'
         with:
           name: coverage-report
@@ -64,10 +66,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@5a7eac68fb9809dea845d802897dc5c723910fa3
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
