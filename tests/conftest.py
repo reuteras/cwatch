@@ -1,4 +1,5 @@
 """Shared test fixtures for cwatch tests."""
+
 import sqlite3
 import tempfile
 from pathlib import Path

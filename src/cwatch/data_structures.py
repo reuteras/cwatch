@@ -1,4 +1,5 @@
 """Data structures for cwatch two-phase architecture."""
+
 from dataclasses import dataclass, field
 from datetime import datetime
 

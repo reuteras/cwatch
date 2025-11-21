@@ -1,4 +1,5 @@
 """Tests for API interactions and retry logic."""
+
 import json
 from unittest.mock import Mock
 
@@ -31,10 +32,7 @@ def test_submit_request_success(sample_config, mocker):
 @pytest.mark.unit
 def test_submit_request_network_error(sample_config, mocker, capsys):
     """Test API request with network error and retries."""
-    mocker.patch(
-        "httpx.post",
-        side_effect=httpcore.ConnectError("Connection failed")
-    )
+    mocker.patch("httpx.post", side_effect=httpcore.ConnectError("Connection failed"))
 
     result = submit_request(sample_config, "example.com")
     captured = capsys.readouterr()
@@ -47,10 +45,7 @@ def test_submit_request_network_error(sample_config, mocker, capsys):
 @pytest.mark.unit
 def test_submit_request_timeout(sample_config, mocker, capsys):
     """Test API request with timeout."""
-    mocker.patch(
-        "httpx.post",
-        side_effect=httpx.TimeoutException("Request timeout")
-    )
+    mocker.patch("httpx.post", side_effect=httpx.TimeoutException("Request timeout"))
 
     result = submit_request(sample_config, "example.com")
     captured = capsys.readouterr()
@@ -85,10 +80,7 @@ def test_get_response_success(sample_config, mocker):
     results_response = Mock()
     results_response.text = json.dumps([{"result": "data"}])
 
-    mocker.patch(
-        "httpx.get",
-        side_effect=[completion_response, results_response]
-    )
+    mocker.patch("httpx.get", side_effect=[completion_response, results_response])
     mocker.patch("time.sleep")  # Speed up test
 
     result = get_response(sample_config, "abc123xyz")
@@ -103,8 +95,8 @@ def test_get_response_polling(sample_config, mocker):
     mock_responses = [
         Mock(text=json.dumps({"complete": False})),  # First check
         Mock(text=json.dumps({"complete": False})),  # Second check
-        Mock(text=json.dumps({"complete": True})),   # Third check
-        Mock(text=json.dumps([{"result": "data"}])), # Results
+        Mock(text=json.dumps({"complete": True})),  # Third check
+        Mock(text=json.dumps([{"result": "data"}])),  # Results
     ]
 
     mock_get = mocker.patch("httpx.get", side_effect=mock_responses)
@@ -119,17 +111,17 @@ def test_get_response_polling(sample_config, mocker):
 @pytest.mark.unit
 def test_get_response_connection_error(sample_config, mocker, capsys):
     """Test response retrieval with connection errors during polling."""
-    mocker.patch(
-        "httpx.get",
-        side_effect=httpcore.ConnectError("Connection failed")
-    )
+    mocker.patch("httpx.get", side_effect=httpcore.ConnectError("Connection failed"))
     mocker.patch("time.sleep")
 
     result = get_response(sample_config, "abc123xyz")
     captured = capsys.readouterr()
 
     assert result == {}
-    assert "Failed to check analysis completion" in captured.err or "Failed to" in captured.err
+    assert (
+        "Failed to check analysis completion" in captured.err
+        or "Failed to" in captured.err
+    )
 
 
 @pytest.mark.unit
@@ -177,10 +169,7 @@ def test_check_analysis_complete_false(sample_config, mocker):
 @pytest.mark.unit
 def test_check_analysis_complete_connection_error(sample_config, mocker, capsys):
     """Test checking analysis completion with connection error."""
-    mocker.patch(
-        "httpx.get",
-        side_effect=httpcore.ConnectError("Connection failed")
-    )
+    mocker.patch("httpx.get", side_effect=httpcore.ConnectError("Connection failed"))
     mocker.patch("time.sleep")
 
     result = check_analysis_complete(sample_config, "abc123xyz")
@@ -206,10 +195,7 @@ def test_get_results_success(sample_config, mocker):
 @pytest.mark.unit
 def test_get_results_connection_error(sample_config, mocker, capsys):
     """Test results retrieval with connection error."""
-    mocker.patch(
-        "httpx.get",
-        side_effect=httpcore.ConnectError("Connection failed")
-    )
+    mocker.patch("httpx.get", side_effect=httpcore.ConnectError("Connection failed"))
     mocker.patch("time.sleep")
 
     result = get_results(sample_config, "abc123xyz")
@@ -273,6 +259,7 @@ def test_retry_decorator_max_retries(mocker, capsys):
 @pytest.mark.unit
 def test_retry_decorator_unexpected_error(capsys):
     """Test retry decorator with unexpected error type."""
+
     @retry_with_backoff(max_retries=3)
     def unexpected_error():
         raise ValueError("Unexpected error")

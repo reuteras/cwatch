@@ -1,4 +1,5 @@
 """Tests for reporter filtering logic."""
+
 import pytest
 
 from cwatch.reporters import HtmlReporter, JsonReporter, TextReporter
@@ -60,7 +61,7 @@ def test_filter_changes_with_valid_dict(sample_config):
 
     changes = {
         "abuseipdb": {"reports": 5, "risk_score": 50},
-        "shodan": {"link": "https://shodan.io/test"}
+        "shodan": {"link": "https://shodan.io/test"},
     }
 
     result = reporter._filter_changes(changes)

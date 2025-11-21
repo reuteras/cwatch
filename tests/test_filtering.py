@@ -1,4 +1,5 @@
 """Tests for change filtering logic."""
+
 import pytest
 
 from cwatch.cw import (
@@ -44,12 +45,7 @@ def test_handle_abuseipdb_with_reports():
 @pytest.mark.unit
 def test_handle_abuseipdb_list_format():
     """Test filtering abuseipdb in list format."""
-    change = {
-        "abuseipdb": [
-            {"old": "value"},
-            {"reports": 0, "risk_score": 0}
-        ]
-    }
+    change = {"abuseipdb": [{"old": "value"}, {"reports": 0, "risk_score": 0}]}
 
     result = handle_abuseipdb(change)
 
@@ -60,10 +56,7 @@ def test_handle_abuseipdb_list_format():
 def test_handle_abuseipdb_list_with_reports():
     """Test keeping abuseipdb list with reports."""
     change = {
-        "abuseipdb": [
-            {"reports": 0, "risk_score": 0},
-            {"reports": 5, "risk_score": 50}
-        ]
+        "abuseipdb": [{"reports": 0, "risk_score": 0}, {"reports": 5, "risk_score": 50}]
     }
 
     result = handle_abuseipdb(change)
@@ -74,11 +67,7 @@ def test_handle_abuseipdb_list_with_reports():
 @pytest.mark.unit
 def test_handle_shodan_no_link():
     """Test filtering shodan without link."""
-    change = {
-        "shodan": {
-            "data": "some_data"
-        }
-    }
+    change = {"shodan": {"data": "some_data"}}
 
     result = handle_shodan(change)
 
@@ -89,10 +78,7 @@ def test_handle_shodan_no_link():
 def test_handle_shodan_with_link():
     """Test keeping shodan with link."""
     change = {
-        "shodan": {
-            "link": "https://www.shodan.io/host/1.2.3.4",
-            "data": "some_data"
-        }
+        "shodan": {"link": "https://www.shodan.io/host/1.2.3.4", "data": "some_data"}
     }
 
     result = handle_shodan(change)
@@ -104,12 +90,7 @@ def test_handle_shodan_with_link():
 @pytest.mark.unit
 def test_handle_threatfox_no_matches():
     """Test filtering threatfox with no matches."""
-    change = {
-        "threatfox": {
-            "count": 0,
-            "malware_printable": []
-        }
-    }
+    change = {"threatfox": {"count": 0, "malware_printable": []}}
 
     result = handle_threatfox(change)
 
@@ -119,12 +100,7 @@ def test_handle_threatfox_no_matches():
 @pytest.mark.unit
 def test_handle_threatfox_with_matches():
     """Test keeping threatfox with matches."""
-    change = {
-        "threatfox": {
-            "count": 1,
-            "malware_printable": ["malware1"]
-        }
-    }
+    change = {"threatfox": {"count": 1, "malware_printable": ["malware1"]}}
 
     result = handle_threatfox(change)
 
@@ -134,9 +110,7 @@ def test_handle_threatfox_with_matches():
 @pytest.mark.unit
 def test_handle_threatfox_null():
     """Test filtering threatfox with null value."""
-    change = {
-        "threatfox": None
-    }
+    change = {"threatfox": None}
 
     result = handle_threatfox(change)
 
@@ -146,12 +120,7 @@ def test_handle_threatfox_null():
 @pytest.mark.unit
 def test_handle_threatfox_list_format():
     """Test filtering threatfox in list format."""
-    change = {
-        "threatfox": [
-            {"old": "value"},
-            {"count": 0, "malware_printable": []}
-        ]
-    }
+    change = {"threatfox": [{"old": "value"}, {"count": 0, "malware_printable": []}]}
 
     result = handle_threatfox(change)
 
@@ -161,12 +130,7 @@ def test_handle_threatfox_list_format():
 @pytest.mark.unit
 def test_handle_virustotal_no_threats():
     """Test filtering virustotal with no threats."""
-    change = {
-        "virustotal": {
-            "community_score": 0,
-            "total_malicious": 0
-        }
-    }
+    change = {"virustotal": {"community_score": 0, "total_malicious": 0}}
 
     result = handle_virustotal(change)
 
@@ -176,12 +140,7 @@ def test_handle_virustotal_no_threats():
 @pytest.mark.unit
 def test_handle_virustotal_with_threats():
     """Test keeping virustotal with threats."""
-    change = {
-        "virustotal": {
-            "community_score": -5,
-            "total_malicious": 3
-        }
-    }
+    change = {"virustotal": {"community_score": -5, "total_malicious": 3}}
 
     result = handle_virustotal(change)
 
@@ -191,12 +150,7 @@ def test_handle_virustotal_with_threats():
 @pytest.mark.unit
 def test_handle_virustotal_null():
     """Test filtering virustotal with null value."""
-    change = {
-        "virustotal": [
-            {"old": "value"},
-            None
-        ]
-    }
+    change = {"virustotal": [{"old": "value"}, None]}
 
     result = handle_virustotal(change)
 
@@ -210,7 +164,7 @@ def test_handle_changes_quiet_mode_no_changes(sample_config):
 
     changes = {
         "abuseipdb": {"reports": 0, "risk_score": 0},
-        "virustotal": {"community_score": 0, "total_malicious": 0}
+        "virustotal": {"community_score": 0, "total_malicious": 0},
     }
 
     result = handle_changes(sample_config, "test.com", changes)
@@ -223,9 +177,7 @@ def test_handle_changes_quiet_mode_with_changes(sample_config, capsys):
     """Test handle_changes in quiet mode with significant changes."""
     sample_config["cwatch"]["quiet"] = True
 
-    changes = {
-        "abuseipdb": {"reports": 5, "risk_score": 50}
-    }
+    changes = {"abuseipdb": {"reports": 5, "risk_score": 50}}
 
     result = handle_changes(sample_config, "test.com", changes)
     captured = capsys.readouterr()
@@ -240,9 +192,7 @@ def test_handle_changes_verbose_mode(sample_config, capsys):
     """Test handle_changes in verbose mode."""
     sample_config["cwatch"]["quiet"] = False
 
-    changes = {
-        "shodan": {"link": "https://shodan.io/test"}
-    }
+    changes = {"shodan": {"link": "https://shodan.io/test"}}
 
     result = handle_changes(sample_config, "test.com", changes)
     captured = capsys.readouterr()
@@ -258,8 +208,8 @@ def test_handle_changes_mixed_engines(sample_config, capsys):
 
     changes = {
         "abuseipdb": {"reports": 0, "risk_score": 0},  # Should be filtered
-        "shodan": {"link": "https://shodan.io/test"},   # Should remain
-        "threatfox": None                                # Should be filtered
+        "shodan": {"link": "https://shodan.io/test"},  # Should remain
+        "threatfox": None,  # Should be filtered
     }
 
     result = handle_changes(sample_config, "test.com", changes)

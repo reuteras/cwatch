@@ -1,4 +1,5 @@
 """Tests for database operations."""
+
 import json
 import sqlite3
 
@@ -62,7 +63,10 @@ def test_save_json_data(sample_config, initialized_db, sample_json_response):
     # Verify data was saved
     conn = sqlite3.connect(sample_config["cwatch"]["DB_FILE"])
     cursor = conn.cursor()
-    cursor.execute("SELECT target, json_content FROM json_data WHERE target = ?", ("test.example.com",))
+    cursor.execute(
+        "SELECT target, json_content FROM json_data WHERE target = ?",
+        ("test.example.com",),
+    )
     result = cursor.fetchone()
     conn.close()
 
@@ -79,7 +83,9 @@ def test_save_json_data_invalid_db():
 
 
 @pytest.mark.unit
-def test_detect_changes_insufficient_data(sample_config, initialized_db, sample_json_response):
+def test_detect_changes_insufficient_data(
+    sample_config, initialized_db, sample_json_response
+):
     """Test change detection with only one entry."""
     save_json_data(sample_config, "test.com", sample_json_response)
 
@@ -100,7 +106,9 @@ def test_detect_changes_no_changes(sample_config, initialized_db, sample_json_re
 
 
 @pytest.mark.unit
-def test_detect_changes_with_changes(sample_config, initialized_db, sample_json_response, capsys):
+def test_detect_changes_with_changes(
+    sample_config, initialized_db, sample_json_response, capsys
+):
     """Test change detection when data has changed."""
     # Save initial data
     save_json_data(sample_config, "test.com", sample_json_response)

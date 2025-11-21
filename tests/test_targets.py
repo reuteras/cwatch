@@ -1,4 +1,5 @@
 """Tests for target resolution and handling."""
+
 import socket
 
 import pytest
@@ -56,7 +57,9 @@ def test_get_targets_dns_failure(sample_config, mocker, capsys):
     targets = []
 
     # Mock DNS failure
-    mocker.patch("socket.getaddrinfo", side_effect=socket.gaierror("Name resolution failed"))
+    mocker.patch(
+        "socket.getaddrinfo", side_effect=socket.gaierror("Name resolution failed")
+    )
 
     result = get_targets(sample_config, targets)
     captured = capsys.readouterr()
@@ -97,9 +100,7 @@ def test_get_targets_no_duplicates(sample_config, mocker):
     targets = []
 
     # Mock DNS resolution to return 8.8.8.8 for dns.google
-    mock_addresses = [
-        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 80))
-    ]
+    mock_addresses = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 80))]
     mocker.patch("socket.getaddrinfo", return_value=mock_addresses)
 
     result = get_targets(sample_config, targets)

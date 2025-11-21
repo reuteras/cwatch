@@ -1,4 +1,5 @@
 """Integration tests for the two-phase architecture."""
+
 import json
 from datetime import datetime
 
@@ -306,8 +307,8 @@ def test_html_reporter_with_links(sample_config):
     report = reporter.generate(collected_data)
 
     # Verify links are present
-    assert '<a href=' in report
-    assert 'shodan.io' in report
+    assert "<a href=" in report
+    assert "shodan.io" in report
     assert 'target="_blank"' in report
 
 

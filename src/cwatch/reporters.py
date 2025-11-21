@@ -1,4 +1,5 @@
 """Reporting module for cwatch."""
+
 import importlib.metadata
 import json
 from abc import ABC, abstractmethod
@@ -407,35 +408,39 @@ class HtmlReporter(Reporter):
         if not targets_with_changes:
             return ""
 
-        html = ['<h2>🚨 Changes Detected</h2>']
+        html = ["<h2>🚨 Changes Detected</h2>"]
 
         for target_result in targets_with_changes:
             filtered_changes = self._filter_changes(target_result.changes)
             if not filtered_changes:
                 continue
 
-            html.append(f'<h3>{target_result.target}</h3>')
-            html.append('<table>')
-            html.append('<tr><th>Engine</th><th>Changes</th><th>Details</th></tr>')
+            html.append(f"<h3>{target_result.target}</h3>")
+            html.append("<table>")
+            html.append("<tr><th>Engine</th><th>Changes</th><th>Details</th></tr>")
 
             for engine, change_data in filtered_changes.items():
                 badge_class = self._get_badge_class(engine, change_data)
                 summary = self._get_change_summary(engine, change_data)
-                links = self._get_engine_links(engine, target_result.target, change_data)
+                links = self._get_engine_links(
+                    engine, target_result.target, change_data
+                )
 
-                html.append('<tr>')
-                html.append(f'<td><span class="change-badge {badge_class}">{engine}</span></td>')
-                html.append(f'<td>{summary}</td>')
-                html.append(f'<td>{links}</td>')
-                html.append('</tr>')
+                html.append("<tr>")
+                html.append(
+                    f'<td><span class="change-badge {badge_class}">{engine}</span></td>'
+                )
+                html.append(f"<td>{summary}</td>")
+                html.append(f"<td>{links}</td>")
+                html.append("</tr>")
 
-            html.append('</table>')
+            html.append("</table>")
 
             # Expandable raw JSON
-            html.append('<details>')
-            html.append('<summary>📄 View Raw JSON</summary>')
-            html.append(f'<pre>{json.dumps(filtered_changes, indent=2)}</pre>')
-            html.append('</details>')
+            html.append("<details>")
+            html.append("<summary>📄 View Raw JSON</summary>")
+            html.append(f"<pre>{json.dumps(filtered_changes, indent=2)}</pre>")
+            html.append("</details>")
 
         return "\n".join(html)
 
@@ -451,18 +456,15 @@ class HtmlReporter(Reporter):
         if self.config["cwatch"]["quiet"]:
             return ""
 
-        no_change_targets = [
-            t for t in data.targets
-            if t.success and not t.changes
-        ]
+        no_change_targets = [t for t in data.targets if t.success and not t.changes]
 
         if not no_change_targets:
             return ""
 
-        html = ['<h2>✅ No Changes Detected</h2>', '<ul>']
+        html = ["<h2>✅ No Changes Detected</h2>", "<ul>"]
         for target in no_change_targets:
-            html.append(f'<li>{target.target}</li>')
-        html.append('</ul>')
+            html.append(f"<li>{target.target}</li>")
+        html.append("</ul>")
 
         return "\n".join(html)
 
@@ -480,14 +482,14 @@ class HtmlReporter(Reporter):
         if not failed_targets:
             return ""
 
-        html = ['<h2>❌ Errors</h2>', '<table>']
-        html.append('<tr><th>Target</th><th>Errors</th></tr>')
+        html = ["<h2>❌ Errors</h2>", "<table>"]
+        html.append("<tr><th>Target</th><th>Errors</th></tr>")
 
         for target in failed_targets:
             errors = "<br>".join(target.errors)
-            html.append(f'<tr><td>{target.target}</td><td>{errors}</td></tr>')
+            html.append(f"<tr><td>{target.target}</td><td>{errors}</td></tr>")
 
-        html.append('</table>')
+        html.append("</table>")
         return "\n".join(html)
 
     def _generate_html_footer(self, data: CollectedData) -> str:
@@ -503,8 +505,8 @@ class HtmlReporter(Reporter):
         return f"""
         <div class="footer">
             <p><strong>Completed:</strong> {data.collection_end.strftime("%Y-%m-%d %H:%M:%S")}</p>
-            {f'<p>{footer_text}</p>' if footer_text else ''}
-            <p>Generated with cwatch {importlib.metadata.version('cwatch')}</p>
+            {f"<p>{footer_text}</p>" if footer_text else ""}
+            <p>Generated with cwatch {importlib.metadata.version("cwatch")}</p>
         </div>
     </div>
 </body>
@@ -580,18 +582,28 @@ class HtmlReporter(Reporter):
 
         if engine == "shodan":
             if isinstance(change_data, dict) and "link" in change_data:
-                links.append(f'<a href="{change_data["link"]}" target="_blank">View on Shodan</a>')
+                links.append(
+                    f'<a href="{change_data["link"]}" target="_blank">View on Shodan</a>'
+                )
             else:
-                links.append(f'<a href="https://www.shodan.io/host/{target}" target="_blank">View on Shodan</a>')
+                links.append(
+                    f'<a href="https://www.shodan.io/host/{target}" target="_blank">View on Shodan</a>'
+                )
 
         if engine == "virustotal":
-            links.append(f'<a href="https://www.virustotal.com/gui/ip-address/{target}" target="_blank">View on VirusTotal</a>')
+            links.append(
+                f'<a href="https://www.virustotal.com/gui/ip-address/{target}" target="_blank">View on VirusTotal</a>'
+            )
 
         if engine == "abuseipdb":
-            links.append(f'<a href="https://www.abuseipdb.com/check/{target}" target="_blank">View on AbuseIPDB</a>')
+            links.append(
+                f'<a href="https://www.abuseipdb.com/check/{target}" target="_blank">View on AbuseIPDB</a>'
+            )
 
         if engine == "threatfox":
-            links.append(f'<a href="https://threatfox.abuse.ch/browse.php?search=ioc%3A{target}" target="_blank">View on ThreatFox</a>')
+            links.append(
+                f'<a href="https://threatfox.abuse.ch/browse.php?search=ioc%3A{target}" target="_blank">View on ThreatFox</a>'
+            )
 
         return " | ".join(links) if links else "-"
 

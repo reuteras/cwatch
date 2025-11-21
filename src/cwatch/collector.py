@@ -1,4 +1,5 @@
 """Data collection module for cwatch."""
+
 import json
 import sqlite3
 from datetime import datetime

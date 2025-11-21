@@ -1,4 +1,5 @@
 """cwatch is a tool to monitor cyberbro for changes for questions."""
+
 import argparse
 import functools
 import hashlib
@@ -31,7 +32,12 @@ def retry_with_backoff(
     max_retries: int = MAX_RETRIES,
     initial_delay: float = INITIAL_RETRY_DELAY,
     max_delay: float = MAX_RETRY_DELAY,
-    exceptions: tuple = (httpcore.ConnectError, HTTPException, httpx.TimeoutException, httpx.ConnectError)
+    exceptions: tuple = (
+        httpcore.ConnectError,
+        HTTPException,
+        httpx.TimeoutException,
+        httpx.ConnectError,
+    ),
 ) -> Callable:
     """Decorator to retry a function with exponential backoff.
 
@@ -44,6 +50,7 @@ def retry_with_backoff(
     Returns:
         Decorated function with retry logic
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -54,19 +61,29 @@ def retry_with_backoff(
                     return func(*args, **kwargs)
                 except exceptions as err:
                     if attempt == max_retries:
-                        print(f"Failed after {max_retries} retries in {func.__name__}: {err}", file=sys.stderr)
+                        print(
+                            f"Failed after {max_retries} retries in {func.__name__}: {err}",
+                            file=sys.stderr,
+                        )
                         return None
 
-                    print(f"Attempt {attempt + 1}/{max_retries + 1} failed in {func.__name__}: {err}. Retrying in {delay:.1f}s...", file=sys.stderr)
+                    print(
+                        f"Attempt {attempt + 1}/{max_retries + 1} failed in {func.__name__}: {err}. Retrying in {delay:.1f}s...",
+                        file=sys.stderr,
+                    )
                     time.sleep(delay)
                     delay = min(delay * 2, max_delay)  # Exponential backoff with cap
                 except Exception as err:
                     # For unexpected exceptions, don't retry
-                    print(f"Unexpected error in {func.__name__}: {err}", file=sys.stderr)
+                    print(
+                        f"Unexpected error in {func.__name__}: {err}", file=sys.stderr
+                    )
                     return None
 
             return None
+
         return wrapper
+
     return decorator
 
 
@@ -81,11 +98,14 @@ def submit_request(configuration, name) -> str:
     Returns:
         Analysis ID string or empty string on failure
     """
-    data: dict[str, dict] = {"text": name, "engines": configuration["cyberbro"]["engines"]}
+    data: dict[str, dict] = {
+        "text": name,
+        "engines": configuration["cyberbro"]["engines"],
+    }
     r: httpx.Response = httpx.post(
         url=configuration["cyberbro"]["url"] + "/api/analyze",
         json=data,
-        timeout=HTTP_TIMEOUT
+        timeout=HTTP_TIMEOUT,
     )
     try:
         response = json.loads(r.text)
@@ -95,7 +115,10 @@ def submit_request(configuration, name) -> str:
         print(f"No analysis_id in response for {name}: {r.text}", file=sys.stderr)
         return ""
     except Exception as err:
-        print(f"Error parsing response for {name}: {r.text}. Error was {err}", file=sys.stderr)
+        print(
+            f"Error parsing response for {name}: {r.text}. Error was {err}",
+            file=sys.stderr,
+        )
         return ""
 
 
@@ -115,8 +138,9 @@ def check_analysis_complete(configuration, analysis_id) -> bool:
     while connect_error_count <= MAX_RETRIES:
         try:
             r: httpx.Response = httpx.get(
-                url=configuration["cyberbro"]["url"] + f"/api/is_analysis_complete/{analysis_id}",
-                timeout=HTTP_TIMEOUT
+                url=configuration["cyberbro"]["url"]
+                + f"/api/is_analysis_complete/{analysis_id}",
+                timeout=HTTP_TIMEOUT,
             )
             # Reset error count on successful connection
             connect_error_count = 0
@@ -125,15 +149,29 @@ def check_analysis_complete(configuration, analysis_id) -> bool:
                 response = json.loads(r.text)
                 return response.get("complete", False)
             except Exception as err:
-                print(f"Error parsing completion response for {analysis_id}: {r.text}. Error was {err}", file=sys.stderr)
+                print(
+                    f"Error parsing completion response for {analysis_id}: {r.text}. Error was {err}",
+                    file=sys.stderr,
+                )
                 return False
 
-        except (HTTPException, httpcore.ConnectError, httpx.TimeoutException, httpx.ConnectError) as err:
+        except (
+            HTTPException,
+            httpcore.ConnectError,
+            httpx.TimeoutException,
+            httpx.ConnectError,
+        ) as err:
             connect_error_count += 1
             if connect_error_count > MAX_RETRIES:
-                print(f"Failed to check analysis completion after {MAX_RETRIES} retries: {err}", file=sys.stderr)
+                print(
+                    f"Failed to check analysis completion after {MAX_RETRIES} retries: {err}",
+                    file=sys.stderr,
+                )
                 return False
-            print(f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...", file=sys.stderr)
+            print(
+                f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...",
+                file=sys.stderr,
+            )
             time.sleep(delay)
             delay = min(delay * 2, MAX_RETRY_DELAY)
             continue
@@ -158,7 +196,7 @@ def get_results(configuration, analysis_id) -> dict:
         try:
             r: httpx.Response = httpx.get(
                 url=configuration["cyberbro"]["url"] + f"/api/results/{analysis_id}",
-                timeout=HTTP_TIMEOUT
+                timeout=HTTP_TIMEOUT,
             )
             # Reset error count on successful connection
             connect_error_count = 0
@@ -166,15 +204,29 @@ def get_results(configuration, analysis_id) -> dict:
             try:
                 return json.loads(r.text)
             except Exception as err:
-                print(f"Error parsing results for {analysis_id}: {r.text}. Error was {err}", file=sys.stderr)
+                print(
+                    f"Error parsing results for {analysis_id}: {r.text}. Error was {err}",
+                    file=sys.stderr,
+                )
                 return {}
 
-        except (HTTPException, httpcore.ConnectError, httpx.TimeoutException, httpx.ConnectError) as err:
+        except (
+            HTTPException,
+            httpcore.ConnectError,
+            httpx.TimeoutException,
+            httpx.ConnectError,
+        ) as err:
             connect_error_count += 1
             if connect_error_count > MAX_RETRIES:
-                print(f"Failed to get results after {MAX_RETRIES} retries: {err}", file=sys.stderr)
+                print(
+                    f"Failed to get results after {MAX_RETRIES} retries: {err}",
+                    file=sys.stderr,
+                )
                 return {}
-            print(f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...", file=sys.stderr)
+            print(
+                f"Connection attempt {connect_error_count}/{MAX_RETRIES + 1} failed: {err}. Retrying in {delay:.1f}s...",
+                file=sys.stderr,
+            )
             time.sleep(delay)
             delay = min(delay * 2, MAX_RETRY_DELAY)
             continue
@@ -200,13 +252,19 @@ def get_response(configuration, analysis_id) -> dict:
         if check_analysis_complete(configuration, analysis_id):
             return get_results(configuration, analysis_id)
 
-        print(f"Analysis {analysis_id} not complete yet. Waiting {poll_interval}s before next check...", file=sys.stderr)
+        print(
+            f"Analysis {analysis_id} not complete yet. Waiting {poll_interval}s before next check...",
+            file=sys.stderr,
+        )
         time.sleep(poll_interval)
         elapsed_time += poll_interval
         # Gradually increase poll interval to reduce server load
         poll_interval = min(poll_interval + 5, 60)
 
-    print(f"Analysis {analysis_id} did not complete within {max_wait_time} seconds", file=sys.stderr)
+    print(
+        f"Analysis {analysis_id} did not complete within {max_wait_time} seconds",
+        file=sys.stderr,
+    )
     return {}
 
 
@@ -220,7 +278,9 @@ def setup_database(configuration) -> bool:
         True if successful, False otherwise
     """
     try:
-        conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
+        conn: sqlite3.Connection = sqlite3.connect(
+            database=configuration["cwatch"]["DB_FILE"]
+        )
         cursor: sqlite3.Cursor = conn.cursor()
         cursor.execute(
             """
@@ -262,7 +322,9 @@ def save_json_data(configuration, item, json_data) -> bool:
         True if successful, False otherwise
     """
     try:
-        conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
+        conn: sqlite3.Connection = sqlite3.connect(
+            database=configuration["cwatch"]["DB_FILE"]
+        )
         cursor: sqlite3.Cursor = conn.cursor()
 
         # Calculate hash for the current JSON
@@ -291,14 +353,28 @@ def save_json_data(configuration, item, json_data) -> bool:
 def handle_abuseipdb(change) -> dict:
     """Remove change from abuseipdb if no relevant changes."""
     report = True
-    if isinstance(change["abuseipdb"], list) and len(change["abuseipdb"]) == 2: # noqa: PLR2004
-        if isinstance(change["abuseipdb"][1], dict) and "reports" in change["abuseipdb"][1] and "risk_score" in change["abuseipdb"][1]:
-            if change["abuseipdb"][1]["reports"] == 0 and change["abuseipdb"][1]["risk_score"] == 0:
+    if isinstance(change["abuseipdb"], list) and len(change["abuseipdb"]) == 2:  # noqa: PLR2004
+        if (
+            isinstance(change["abuseipdb"][1], dict)
+            and "reports" in change["abuseipdb"][1]
+            and "risk_score" in change["abuseipdb"][1]
+        ):
+            if (
+                change["abuseipdb"][1]["reports"] == 0
+                and change["abuseipdb"][1]["risk_score"] == 0
+            ):
                 report = False
         else:
             report = False
-    elif isinstance(change["abuseipdb"], dict) and "reports" in change["abuseipdb"] and "risk_score" in change["abuseipdb"]:
-        if change["abuseipdb"]["reports"] == 0 and change["abuseipdb"]["risk_score"] == 0:
+    elif (
+        isinstance(change["abuseipdb"], dict)
+        and "reports" in change["abuseipdb"]
+        and "risk_score" in change["abuseipdb"]
+    ):
+        if (
+            change["abuseipdb"]["reports"] == 0
+            and change["abuseipdb"]["risk_score"] == 0
+        ):
             report = False
     if not report:
         change.pop("abuseipdb")
@@ -316,14 +392,22 @@ def handle_threatfox(change) -> dict:
     """Remove change from threatfox if no matches."""
     report = True
     try:
-        if isinstance(change["threatfox"], list) and len(change["threatfox"]) == 2: # noqa: PLR2004
-            if isinstance(change["threatfox"][1], dict) and "count" in change["threatfox"][1] and change["threatfox"][1]["count"] == 0 \
-                    and "malware_printable" in change["threatfox"][1] and change["threatfox"][1]["malware_printable"] == []:
+        if isinstance(change["threatfox"], list) and len(change["threatfox"]) == 2:  # noqa: PLR2004
+            if (
+                isinstance(change["threatfox"][1], dict)
+                and "count" in change["threatfox"][1]
+                and change["threatfox"][1]["count"] == 0
+                and "malware_printable" in change["threatfox"][1]
+                and change["threatfox"][1]["malware_printable"] == []
+            ):
                 report = False
             elif change["threatfox"][1] is None:
                 report = False
         elif isinstance(change["threatfox"], dict) and "count" in change["threatfox"]:
-            if change["threatfox"]["count"] == 0 and change["threatfox"]["malware_printable"] == []:
+            if (
+                change["threatfox"]["count"] == 0
+                and change["threatfox"]["malware_printable"] == []
+            ):
                 report = False
         elif change["threatfox"] is None:
             report = False
@@ -338,14 +422,25 @@ def handle_threatfox(change) -> dict:
 def handle_virustotal(change) -> dict:
     """Remove change from virustotal if no matches."""
     report = True
-    if isinstance(change["virustotal"], list) and len(change["virustotal"]) == 2: # noqa: PLR2004
+    if isinstance(change["virustotal"], list) and len(change["virustotal"]) == 2:  # noqa: PLR2004
         if change["virustotal"][1] is None:
             report = False
-        elif isinstance(change["virustotal"][1], dict) and "community_score" in change["virustotal"][1] and change["virustotal"][1]["community_score"] == 0 \
-                and "total_malicious" in change["virustotal"][1] and change["virustotal"][1]["total_malicious"] == 0:
+        elif (
+            isinstance(change["virustotal"][1], dict)
+            and "community_score" in change["virustotal"][1]
+            and change["virustotal"][1]["community_score"] == 0
+            and "total_malicious" in change["virustotal"][1]
+            and change["virustotal"][1]["total_malicious"] == 0
+        ):
             report = False
-    elif isinstance(change["virustotal"], dict) and "community_score" in change["virustotal"]:
-        if change["virustotal"]["community_score"] == 0 and change["virustotal"]["total_malicious"] == 0:
+    elif (
+        isinstance(change["virustotal"], dict)
+        and "community_score" in change["virustotal"]
+    ):
+        if (
+            change["virustotal"]["community_score"] == 0
+            and change["virustotal"]["total_malicious"] == 0
+        ):
             report = False
     elif change["virustotal"] is None:
         report = False
@@ -386,7 +481,9 @@ def detect_changes(configuration, item) -> bool:
         True if changes detected, False otherwise
     """
     try:
-        conn: sqlite3.Connection = sqlite3.connect(database=configuration["cwatch"]["DB_FILE"])
+        conn: sqlite3.Connection = sqlite3.connect(
+            database=configuration["cwatch"]["DB_FILE"]
+        )
         cursor: sqlite3.Cursor = conn.cursor()
         changed: bool = False
 
@@ -400,13 +497,20 @@ def detect_changes(configuration, item) -> bool:
         )
         rows: list[Any] = cursor.fetchall()
 
-        if len(rows) == 2: # noqa: PLR2004
+        if len(rows) == 2:  # noqa: PLR2004
             old_json: dict = json.loads(rows[1][0])[0]
             new_json: dict = json.loads(rows[0][0])[0]
-            changes: dict = compare_json(configuration=configuration, old=old_json, new=new_json)
+            changes: dict = compare_json(
+                configuration=configuration, old=old_json, new=new_json
+            )
             if changes != {}:
-                changed = handle_changes(configuration=configuration, target=item, changes=changes)
-            if configuration["cwatch"]["report"] and not configuration["cwatch"]["quiet"]:
+                changed = handle_changes(
+                    configuration=configuration, target=item, changes=changes
+                )
+            if (
+                configuration["cwatch"]["report"]
+                and not configuration["cwatch"]["quiet"]
+            ):
                 print("- No changes.")
         elif not configuration["cwatch"]["quiet"]:
             print("- Not enough data for comparison.")
@@ -430,13 +534,17 @@ def compare_json(configuration, old, new) -> dict:
     if simple:
         diff_result = jsondiff.diff(old, new, syntax="symmetric")
     else:
-        json_diff: str = cast(str, jsondiff.diff(old, new, syntax="symmetric", dump=True))
+        json_diff: str = cast(
+            str, jsondiff.diff(old, new, syntax="symmetric", dump=True)
+        )
         diff_result = json.loads(json_diff)
 
     # Validate diff_result is a dict
     if not isinstance(diff_result, dict):
         if verbose and isinstance(diff_result, list):
-            print("Warning: Complete structural change detected, treating as no reportable changes")
+            print(
+                "Warning: Complete structural change detected, treating as no reportable changes"
+            )
         return {}
 
     # Apply filtering (only in non-simple mode)
@@ -487,7 +595,7 @@ def report_header(configuration) -> None:
     print(f"Report generation start at {datetime.now().isoformat()}")
     print("")
     print("Will report changes in the following engines.")
-    engines:list = configuration["cyberbro"]["engines"]
+    engines: list = configuration["cyberbro"]["engines"]
     engines.sort()
     for engine in engines:
         if engine not in configuration["cwatch"]["ignore_engines"]:
@@ -508,7 +616,9 @@ def report_footer(configuration) -> None:
         print("")
         print(configuration["cwatch"]["footer"])
     print("")
-    print(f"Report generated with cwatch {importlib.metadata.version(distribution_name='cwatch')}.")
+    print(
+        f"Report generated with cwatch {importlib.metadata.version(distribution_name='cwatch')}."
+    )
 
 
 def get_targets(configuration, targets) -> list:  # noqa: PLR0912
@@ -526,7 +636,11 @@ def get_targets(configuration, targets) -> list:  # noqa: PLR0912
         public_ip = False
         try:
             # Handle IP addresses in domain list
-            if ipaddress.ip_address(address=domain) and not ipaddress.ip_address(address=domain).is_private and domain not in targets:
+            if (
+                ipaddress.ip_address(address=domain)
+                and not ipaddress.ip_address(address=domain).is_private
+                and domain not in targets
+            ):
                 targets.append(domain)
                 continue
             elif ipaddress.ip_address(address=domain).is_private:
@@ -539,17 +653,25 @@ def get_targets(configuration, targets) -> list:  # noqa: PLR0912
         delay = INITIAL_RETRY_DELAY
         for attempt in range(MAX_RETRIES + 1):
             try:
-                addresses = socket.getaddrinfo(host=domain, port="http", proto=socket.IPPROTO_TCP)
+                addresses = socket.getaddrinfo(
+                    host=domain, port="http", proto=socket.IPPROTO_TCP
+                )
                 break
             except socket.gaierror as err:
                 if attempt == MAX_RETRIES:
-                    print(f"Failed to lookup DNS for {domain} after {MAX_RETRIES} retries: {err}. Skipping this domain.")
+                    print(
+                        f"Failed to lookup DNS for {domain} after {MAX_RETRIES} retries: {err}. Skipping this domain."
+                    )
                     break
-                print(f"DNS lookup attempt {attempt + 1}/{MAX_RETRIES + 1} failed for {domain}: {err}. Retrying in {delay:.1f}s...")
+                print(
+                    f"DNS lookup attempt {attempt + 1}/{MAX_RETRIES + 1} failed for {domain}: {err}. Retrying in {delay:.1f}s..."
+                )
                 time.sleep(delay)
                 delay = min(delay * 2, MAX_RETRY_DELAY)
             except Exception as err:
-                print(f"Unexpected error looking up {domain}: {err}. Skipping this domain.")
+                print(
+                    f"Unexpected error looking up {domain}: {err}. Skipping this domain."
+                )
                 break
 
         if addresses is None:
@@ -567,16 +689,15 @@ def get_targets(configuration, targets) -> list:  # noqa: PLR0912
                 targets.append(ip)
     return targets
 
+
 def main() -> None:
     """Main function with two-phase architecture."""
     # Parse command-line arguments
-    parser = argparse.ArgumentParser(
-        description="Monitor cyberbro for changes in IOCs"
-    )
+    parser = argparse.ArgumentParser(description="Monitor cyberbro for changes in IOCs")
     parser.add_argument(
         "--email-stdout",
         action="store_true",
-        help="Output email-formatted report to stdout (useful for cron jobs)"
+        help="Output email-formatted report to stdout (useful for cron jobs)",
     )
     args = parser.parse_args()
 
