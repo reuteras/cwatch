@@ -67,7 +67,7 @@ When you merge the Release PR, the workflow automatically:
 Version bumps are determined by commit types:
 
 | Commit Type | Version Bump | Example |
-|------------|--------------|---------|
+| ----------- | ------------ | ------- |
 | `fix:` | PATCH (0.4.0 → 0.4.1) | Bug fixes |
 | `feat:` | MINOR (0.4.0 → 0.5.0) | New features |
 | `BREAKING CHANGE:` or `!` | MAJOR (0.4.0 → 1.0.0) | Breaking changes |
