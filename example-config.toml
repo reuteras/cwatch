@@ -77,6 +77,13 @@ ignore_engines_partly = [
     [ "abuseipdb", "link" ],
 ]
 
+# Whitelist abuse email addresses that should not be reported as changes
+# These addresses will be filtered out from abusix results
+# Use this to ignore your own domain's abuse addresses or known stable contacts
+ignore_abuse_addresses = [
+    # "abuse@yourdomain.com",
+]
+
 # Enable quiet mode - filters out noise from reports
 # - Removes zero-risk items (e.g., abuseipdb with 0 reports and 0 risk score)
 # - Removes no-match results (e.g., threatfox with 0 count)

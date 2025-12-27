@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 
 from cwatch.cw import (
     handle_abuseipdb,
+    handle_abusix,
     handle_shodan,
     handle_threatfox,
     handle_virustotal,
@@ -48,20 +49,22 @@ class Reporter(ABC):
         if not isinstance(changes, dict):
             return {}
 
-        if not self.config["cwatch"]["quiet"]:
-            return changes
-
         filtered = changes.copy()
 
         # Apply engine-specific filtering
-        if "abuseipdb" in filtered:
-            filtered = handle_abuseipdb(filtered)
-        if "shodan" in filtered:
-            filtered = handle_shodan(filtered)
-        if "threatfox" in filtered:
-            filtered = handle_threatfox(filtered)
-        if "virustotal" in filtered:
-            filtered = handle_virustotal(filtered)
+        if self.config["cwatch"]["quiet"]:
+            if "abuseipdb" in filtered:
+                filtered = handle_abuseipdb(filtered)
+            if "shodan" in filtered:
+                filtered = handle_shodan(filtered)
+            if "threatfox" in filtered:
+                filtered = handle_threatfox(filtered)
+            if "virustotal" in filtered:
+                filtered = handle_virustotal(filtered)
+
+        # Always filter whitelisted abuse addresses (even in non-quiet mode)
+        if "abusix" in filtered:
+            filtered = handle_abusix(self.config, filtered)
 
         return filtered
 
@@ -97,7 +100,7 @@ class TextReporter(Reporter):
                 filtered_changes = self._filter_changes(target_result.changes)
                 if filtered_changes:
                     output.append(f"\nChanges detected for {target_result.target}:")
-                    output.append(json.dumps(filtered_changes, indent=4))
+                    output.append(self._format_changes_readable(target_result.target, filtered_changes))
             elif self.config["cwatch"]["report"] and not self.config["cwatch"]["quiet"]:
                 output.append(f"\nChecking for changes for: {target_result.target}")
                 output.append("- No changes.")
@@ -167,6 +170,80 @@ class TextReporter(Reporter):
         lines.append(
             f"Report generated with cwatch {importlib.metadata.version('cwatch')}."
         )
+        return "\n".join(lines)
+
+    def _format_changes_readable(self, target: str, changes: dict) -> str:
+        """Format changes in a human-readable way.
+
+        Args:
+            target: Target IP/domain
+            changes: Dictionary of changes
+
+        Returns:
+            Formatted string
+        """
+        lines = []
+
+        for engine, change_data in changes.items():
+            lines.append(f"  [{engine}]")
+
+            # Handle specific engines with custom formatting
+            if engine == "abuseipdb" and isinstance(change_data, dict):
+                reports = change_data.get("reports", "N/A")
+                risk = change_data.get("risk_score", "N/A")
+                lines.append(f"    Reports: {reports}")
+                lines.append(f"    Risk Score: {risk}%")
+                if "link" in change_data:
+                    lines.append(f"    Link: {change_data['link']}")
+
+            elif engine == "virustotal" and isinstance(change_data, dict):
+                malicious = change_data.get("total_malicious", "N/A")
+                score = change_data.get("community_score", "N/A")
+                lines.append(f"    Malicious: {malicious}")
+                lines.append(f"    Community Score: {score}")
+                lines.append(f"    Link: https://www.virustotal.com/gui/ip-address/{target}")
+
+            elif engine == "threatfox" and isinstance(change_data, dict):
+                count = change_data.get("count", "N/A")
+                lines.append(f"    Threats: {count}")
+                if "malware_printable" in change_data:
+                    malware = change_data.get("malware_printable", [])
+                    if malware:
+                        lines.append(f"    Malware: {', '.join(malware)}")
+                lines.append(f"    Link: https://threatfox.abuse.ch/browse.php?search=ioc%3A{target}")
+
+            elif engine == "shodan" and isinstance(change_data, dict):
+                if "link" in change_data:
+                    lines.append(f"    Link: {change_data['link']}")
+                else:
+                    lines.append(f"    Link: https://www.shodan.io/host/{target}")
+
+            elif engine == "abusix" and isinstance(change_data, dict):
+                if "abuse_contacts" in change_data:
+                    contacts = change_data.get("abuse_contacts", [])
+                    if contacts:
+                        lines.append(f"    Abuse Contacts: {', '.join(contacts)}")
+
+            elif isinstance(change_data, list):
+                # Handle list changes
+                if len(change_data) == 2:  # noqa: PLR2004
+                    lines.append(f"    Old: {change_data[0]}")
+                    lines.append(f"    New: {change_data[1]}")
+                else:
+                    lines.append(f"    Changed: {len(change_data)} items")
+
+            elif isinstance(change_data, dict):
+                # Generic dict formatting - show key changes
+                for key, value in change_data.items():
+                    if isinstance(value, (str, int, float, bool)):
+                        lines.append(f"    {key}: {value}")
+                    elif isinstance(value, list) and len(value) == 2:  # noqa: PLR2004
+                        lines.append(f"    {key}: {value[0]} -> {value[1]}")
+
+            else:
+                # Fallback to simple representation
+                lines.append(f"    {change_data}")
+
         return "\n".join(lines)
 
 

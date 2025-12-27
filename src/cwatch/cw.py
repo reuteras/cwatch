@@ -304,9 +304,44 @@ def setup_database(configuration) -> bool:
         return False
 
 
+def normalize_json(data):
+    """Normalize JSON data to ignore order-only changes.
+
+    Args:
+        data: JSON data to normalize (dict, list, or primitive)
+
+    Returns:
+        Normalized data with sorted structures
+    """
+    if isinstance(data, dict):
+        # Sort dictionary by keys and recursively normalize values
+        return {k: normalize_json(v) for k, v in sorted(data.items())}
+    elif isinstance(data, list):
+        # Try to sort lists if elements are comparable, otherwise keep order
+        # but normalize nested structures
+        normalized_list = [normalize_json(item) for item in data]
+        try:
+            # Attempt to sort if all elements are comparable
+            # For dicts, convert to JSON string for comparison
+            return sorted(
+                normalized_list,
+                key=lambda x: json.dumps(x, sort_keys=True) if isinstance(x, (dict, list)) else x
+            )
+        except (TypeError, ValueError):
+            # If not sortable, return normalized list in original order
+            return normalized_list
+    else:
+        # Primitive types (str, int, float, bool, None) remain unchanged
+        return data
+
+
 def calculate_hash(json_data) -> str:
-    """Function to calculate a hash for a JSON object."""
-    json_string: str = json.dumps(obj=json_data, sort_keys=True)
+    """Function to calculate a hash for a JSON object.
+
+    Normalizes the JSON to ignore order-only changes before hashing.
+    """
+    normalized_data = normalize_json(json_data)
+    json_string: str = json.dumps(obj=normalized_data, sort_keys=True)
     return hashlib.sha256(string=json_string.encode(encoding="utf-8")).hexdigest()
 
 
@@ -449,6 +484,56 @@ def handle_virustotal(change) -> dict:
     return change
 
 
+def handle_abusix(configuration, change) -> dict:
+    """Filter out whitelisted abuse addresses from abusix results."""
+    ignore_addresses = configuration["cwatch"].get("ignore_abuse_addresses", [])
+    if not ignore_addresses:
+        return change
+
+    report = True
+    try:
+        # Handle list format: [old_value, new_value]
+        if isinstance(change["abusix"], list) and len(change["abusix"]) == 2:  # noqa: PLR2004
+            old_data = change["abusix"][0]
+            new_data = change["abusix"][1]
+
+            # Filter both old and new abuse_contacts
+            if isinstance(old_data, dict) and "abuse_contacts" in old_data:
+                old_contacts = [c for c in old_data["abuse_contacts"] if c not in ignore_addresses]
+                old_data["abuse_contacts"] = old_contacts
+
+            if isinstance(new_data, dict) and "abuse_contacts" in new_data:
+                new_contacts = [c for c in new_data["abuse_contacts"] if c not in ignore_addresses]
+                new_data["abuse_contacts"] = new_contacts
+
+            # If both lists are now the same or empty, don't report
+            if old_data == new_data or (
+                isinstance(new_data, dict)
+                and not new_data.get("abuse_contacts")
+            ):
+                report = False
+
+        # Handle dict format
+        elif isinstance(change["abusix"], dict) and "abuse_contacts" in change["abusix"]:
+            filtered_contacts = [
+                c for c in change["abusix"]["abuse_contacts"]
+                if c not in ignore_addresses
+            ]
+            if not filtered_contacts:
+                report = False
+            else:
+                change["abusix"]["abuse_contacts"] = filtered_contacts
+
+    except (TypeError, KeyError):
+        # If there's any issue with the structure, keep the original
+        pass
+
+    if not report:
+        change.pop("abusix")
+
+    return change
+
+
 def handle_changes(configuration, target: str, changes: dict) -> bool:
     """Handle changes."""
     if configuration["cwatch"]["quiet"]:
@@ -460,11 +545,16 @@ def handle_changes(configuration, target: str, changes: dict) -> bool:
             changes = handle_threatfox(change=changes)
         if "virustotal" in changes:
             changes = handle_virustotal(change=changes)
+        if "abusix" in changes:
+            changes = handle_abusix(configuration=configuration, change=changes)
         if changes != {}:
             print(f"Changes detected for {target}:")
             print(json.dumps(obj=changes, indent=4))
             return True
         return False
+    # Even in non-quiet mode, filter whitelisted abuse addresses
+    if "abusix" in changes:
+        changes = handle_abusix(configuration=configuration, change=changes)
     print(f"Changes detected for {target}:")
     print(json.dumps(changes, indent=4))
     return True
@@ -526,16 +616,23 @@ def detect_changes(configuration, item) -> bool:
 
 
 def compare_json(configuration, old, new) -> dict:
-    """Compare json objects."""
+    """Compare json objects.
+
+    Normalizes JSON data to ignore order-only changes before comparison.
+    """
     simple: bool = configuration["cwatch"]["simple"]
     verbose: bool = configuration["cwatch"]["verbose"]
 
+    # Normalize both old and new to ignore order-only changes
+    old_normalized = normalize_json(old)
+    new_normalized = normalize_json(new)
+
     # Get the diff result
     if simple:
-        diff_result = jsondiff.diff(old, new, syntax="symmetric")
+        diff_result = jsondiff.diff(old_normalized, new_normalized, syntax="symmetric")
     else:
         json_diff: str = cast(
-            str, jsondiff.diff(old, new, syntax="symmetric", dump=True)
+            str, jsondiff.diff(old_normalized, new_normalized, syntax="symmetric", dump=True)
         )
         diff_result = json.loads(json_diff)
 
