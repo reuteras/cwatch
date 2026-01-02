@@ -76,6 +76,40 @@ def test_compare_json_ignore_partly_with_other_changes(sample_config):
 
 
 @pytest.mark.unit
+def test_compare_json_ignore_engines_partly_top_level(sample_config):
+    """Test partial ignore for top-level keys."""
+    sample_config["cwatch"]["ignore_engines_partly"] = [
+        ["reversed_success", "reversed_success"]
+    ]
+
+    old = {"reversed_success": True, "abuseipdb": {"reports": 0}}
+    new = {"reversed_success": False, "abuseipdb": {"reports": 0}}
+
+    result = compare_json(sample_config, old, new)
+
+    # Should not report change in reversed_success, but should report abuseipdb if it had changes
+    assert "reversed_success" not in result
+    assert "abuseipdb" not in result  # no changes
+
+
+@pytest.mark.unit
+def test_compare_json_ignore_engines_partly_user_case(sample_config):
+    """Test the user's specific case with reversed_success."""
+    sample_config["cwatch"]["ignore_engines_partly"] = [
+        ["reverse_dns", "reversed_success"]
+    ]
+
+    old = {"reversed_success": True, "abuseipdb": {"reports": 0}}
+    new = {"reversed_success": False, "abuseipdb": {"reports": 5}}
+
+    result = compare_json(sample_config, old, new)
+
+    # Should not report change in reversed_success, but should report abuseipdb
+    assert "reversed_success" not in result
+    assert "abuseipdb" in result
+
+
+@pytest.mark.unit
 def test_compare_json_simple_mode(sample_config):
     """Test JSON comparison in simple mode."""
     sample_config["cwatch"]["simple"] = True

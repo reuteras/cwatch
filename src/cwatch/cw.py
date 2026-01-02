@@ -325,7 +325,9 @@ def normalize_json(data):
             # For dicts, convert to JSON string for comparison
             return sorted(
                 normalized_list,
-                key=lambda x: json.dumps(x, sort_keys=True) if isinstance(x, (dict, list)) else x
+                key=lambda x: json.dumps(x, sort_keys=True)
+                if isinstance(x, (dict, list))
+                else x,
             )
         except (TypeError, ValueError):
             # If not sortable, return normalized list in original order
@@ -499,24 +501,30 @@ def handle_abusix(configuration, change) -> dict:
 
             # Filter both old and new abuse_contacts
             if isinstance(old_data, dict) and "abuse_contacts" in old_data:
-                old_contacts = [c for c in old_data["abuse_contacts"] if c not in ignore_addresses]
+                old_contacts = [
+                    c for c in old_data["abuse_contacts"] if c not in ignore_addresses
+                ]
                 old_data["abuse_contacts"] = old_contacts
 
             if isinstance(new_data, dict) and "abuse_contacts" in new_data:
-                new_contacts = [c for c in new_data["abuse_contacts"] if c not in ignore_addresses]
+                new_contacts = [
+                    c for c in new_data["abuse_contacts"] if c not in ignore_addresses
+                ]
                 new_data["abuse_contacts"] = new_contacts
 
             # If both lists are now the same or empty, don't report
             if old_data == new_data or (
-                isinstance(new_data, dict)
-                and not new_data.get("abuse_contacts")
+                isinstance(new_data, dict) and not new_data.get("abuse_contacts")
             ):
                 report = False
 
         # Handle dict format
-        elif isinstance(change["abusix"], dict) and "abuse_contacts" in change["abusix"]:
+        elif (
+            isinstance(change["abusix"], dict) and "abuse_contacts" in change["abusix"]
+        ):
             filtered_contacts = [
-                c for c in change["abusix"]["abuse_contacts"]
+                c
+                for c in change["abusix"]["abuse_contacts"]
                 if c not in ignore_addresses
             ]
             if not filtered_contacts:
@@ -632,7 +640,10 @@ def compare_json(configuration, old, new) -> dict:
         diff_result = jsondiff.diff(old_normalized, new_normalized, syntax="symmetric")
     else:
         json_diff: str = cast(
-            str, jsondiff.diff(old_normalized, new_normalized, syntax="symmetric", dump=True)
+            str,
+            jsondiff.diff(
+                old_normalized, new_normalized, syntax="symmetric", dump=True
+            ),
         )
         diff_result = json.loads(json_diff)
 
@@ -680,6 +691,16 @@ def _apply_diff_filters(configuration: dict, diff: dict) -> dict:
                 print(f"Removed diff in {engine}->{part}: {removed}")
             if not diff[engine]:
                 diff.pop(engine)
+
+    # Also ignore top-level keys that match any part in ignore_engines_partly
+    ignored_parts = set(
+        combo[1] for combo in configuration["cwatch"]["ignore_engines_partly"]
+    )
+    for part in ignored_parts:
+        if part in diff:
+            removed = diff.pop(part)
+            if verbose:
+                print(f"Removed diff in {part}: {removed}")
 
     return diff
 
